@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOB - Artifact Cataloger (Offline)</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load jsPDF library for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Load SheetJS (xlsx.js) library for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* Inter font family */
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: #f4f4f5; /* A light gray background for the app frame */
+        }
+        /* Custom dark green from the spec */
+        :root {
+            --brand-green: #14532d; /* dark green-800 */
+        }
+        .bg-brand-green {
+            background-color: var(--brand-green);
+        }
+        .text-brand-green {
+            color: var(--brand-green);
+        }
+        .border-brand-green {
+            border-color: var(--brand-green);
+        }
+        /* Simple loading spinner */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-left-color: #ffffff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Camera/Canvas Styles */
+        #camera-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Cover the entire area */
+            transform: scaleX(-1); /* Mirror mode */
+        }
+        #image-canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main App Container -->
+    <div class="w-full max-w-sm mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden" style="height: 80vh; min-height: 600px;">
+        <div id="app-content" class="h-full relative">
+            
+            <!-- Page: Loading Screen (Default) -->
+            <div id="page-loading" class="flex flex-col items-center justify-center h-full bg-brand-green text-white p-8">
+                <!-- Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-24 h-24 mb-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 15.75-2.489-2.489m0 0a3.375 3.375 0 1 0-4.773-4.773 3.375 3.375 0 0 0 4.774 4.774ZM21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <h1 class="text-4xl font-bold mb-4">BOB</h1>
+                <p class="text-lg text-green-200 mb-8">Field Artifact Cataloger</p>
+                <div class="spinner"></div>
+            </div>
+
+            <!-- Page: Login -->
+            <div id="page-login" class="hidden flex-col h-full p-8">
+                <!-- Content from previous version -->
+                <div class="flex-shrink-0 text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-20 h-20 mb-4 mx-auto text-brand-green">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 15.75-2.489-2.489m0 0a3.375 3.375 0 1 0-4.773-4.773 3.375 3.375 0 0 0 4.774 4.774ZM21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    <h1 class="text-3xl font-bold text-gray-900">Welcome to BOB</h1>
+                    <p class="text-gray-600 mt-2">Log in to your account</p>
+                </div>
+                <div class="flex-grow flex flex-col justify-center space-y-4">
+                    <button onclick="goToPage('page-camera')" class="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-700 font-medium hover:bg-gray-50">
+                        Sign in with Google (Demo)
+                    </button>
+                    <button onclick="goToPage('page-camera')" class="w-full flex items-center justify-center px-4 py-3 border border-transparent rounded-lg shadow-sm bg-black text-white font-medium hover:bg-gray-800">
+                        Sign in with Apple (Demo)
+                    </button>
+                    <button onclick="goToPage('page-camera')" class="w-full px-4 py-3 border border-transparent rounded-lg shadow-sm bg-brand-green text-white font-medium hover:bg-green-800">
+                        Sign in as Guest
+                    </button>
+                </div>
+            </div>
+
+            <!-- Page: Camera -->
+            <div id="page-camera" class="hidden flex-col h-full bg-gray-900">
+                
+                <!-- Header with Log Button -->
+                <div class="flex-shrink-0 flex items-center justify-between h-16 bg-black text-white p-4">
+                    <h2 class="text-lg font-semibold">New Artifact</h2>
+                    <button onclick="goToPage('page-log')" class="p-2 rounded-lg hover:bg-gray-700">
+                        <!-- Log Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+                        </svg>
+                        <span class="sr-only">View Log</span>
+                    </button>
+                </div>
+
+                <!-- Real camera view -->
+                <div class="flex-grow relative bg-gray-800 overflow-hidden">
+                    <video id="camera-feed" playsinline autoplay muted></video>
+                </div>
+                
+                <!-- Hidden canvas for capturing images -->
+                <canvas id="image-canvas"></canvas>
+
+                <!-- Controls -->
+                <div class="flex-shrink-0 flex items-center justify-center h-28 bg-black">
+                    <button onclick="takePicture()" class="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-lg transition-transform active:scale-95">
+                        <div class="w-16 h-16 rounded-full border-4 border-black"></div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Page: Confirmation -->
+            <div id="page-confirmation" class="hidden flex-col h-full">
+                <!-- Header -->
+                <div class="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200">
+                    <button onclick="goToPage('page-camera')" class="text-gray-600 hover:text-brand-green">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                        <span class="sr-only">Cancel</span>
+                    </button>
+                    <h2 class="text-lg font-semibold">Confirm Artifact</h2>
+                    <button id="submit-button" onclick="submitArtifact()" class="px-5 py-2 bg-brand-green text-white rounded-lg font-medium hover:bg-green-800 active:scale-95 transition-transform">
+                        Save
+                    </button>
+                </div>
+                
+                <!-- UPDATED Content -->
+                <div class="flex-grow overflow-y-auto p-6 space-y-6">
+                    <!-- Image Preview -->
+                    <div>
+                        <img id="artifact-image-preview" src="https://placehold.co/600x400/cccccc/999999?text=Artifact+Image" alt="Artifact Preview" class="w-full rounded-lg shadow-md aspect-video object-cover" 
+                             onerror="this.src='https://placehold.co/600x400/cccccc/999999?text=Artifact+Image'">
+                    </div>
+
+                    <!-- NEW: User Field -->
+                    <div>
+                        <label for="user-name" class="block text-sm font-medium text-gray-700 mb-1">User</label>
+                        <input type="text" id="user-name" value="Guest" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-700">
+                    </div>
+
+                    <!-- Categories -->
+                    <div>
+                        <label for="material-category" class="block text-sm font-medium text-gray-700 mb-1">Material</label>
+                        <select id="material-category" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-700">
+                            <option>Ceramic</option>
+                            <option>Metal</option>
+                            <option>Organic</option>
+                            <option>Stone</option>
+                            <option>Fossil</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="function-category" class="block text-sm font-medium text-gray-700 mb-1">Function</label>
+                        <select id="function-category" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-700">
+                            <option>Tool</option>
+                            <option>Weapon</option>
+                            <option>Pottery</option>
+                            <option>Religious</option>
+                        </select>
+                    </div>
+
+                    <!-- Additional Info -->
+                    <div>
+                        <label for="additional-info" class="block text-sm font-medium text-gray-700 mb-1">Additional Information</label>
+                        <textarea id="additional-info" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-700" placeholder="Add field notes, measurements, or context..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page - Artifact Log ("Virtual Sheet") -->
+            <div id="page-log" class="hidden flex-col h-full">
+                <!-- Header with Export Buttons -->
+                <div class="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200">
+                    <button onclick="goToPage('page-camera')" class="text-gray-600 hover:text-brand-green p-2">
+                        <!-- Back Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                        </svg>
+                        <span class="sr-only">Back to Camera</span>
+                    </button>
+                    <h2 class="text-lg font-semibold">Artifact Log</h2>
+                    <!-- Export buttons group -->
+                    <div class="flex items-center space-x-2">
+                        <!-- Excel Export Button -->
+                        <button onclick="exportXLSX()" class="text-gray-600 hover:text-brand-green p-2" title="Export as Excel (.xlsx)">
+                             <!-- Excel Icon (File with lines) -->
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                            </svg>
+                            <span class="sr-only">Export as Excel</span>
+                        </button>
+                        <button onclick="exportJSON()" class="text-gray-600 hover:text-brand-green p-2" title="Export as JSON">
+                            <!-- JSON Icon (Code) -->
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="m6.75 7.5 3 3-3 3m6-6 3 3-3 3" />
+                            </svg>
+                            <span class="sr-only">Export as JSON</span>
+                        </button>
+                         <button id="clear-log-btn" onclick="clearLog()" class="text-red-600 hover:text-red-800 p-2" title="Clear Log">
+                            <!-- Trash Icon -->
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.54 0c.04.03.079.062.118.095m-9.345 0c.079.056.159.113.239.17M9 10.5h.008v.008H9v-.008Zm4.5 0h.008v.008H13.5v-.008Zm4.5 0h.008v.008H18v-.008Zm-4.5-4.5h.008v.008H13.5v-.008Zm0 9h.008v.008H13.5v-.008Zm-4.5 0h.008v.008H9v-.008Z" />
+                            </svg>
+                            <span class="sr-only">Clear Log</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- Log Content -->
+                <div id="log-content" class="flex-grow overflow-y-auto p-4 space-y-4">
+                    <!-- Artifact entries will be dynamically added here -->
+                    <div id="log-empty-state" class="text-center text-gray-500 pt-16">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-400">
+                           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+                        </svg>
+                        <h3 class="text-lg font-medium">Log is Empty</h3>
+                        <p class="text-sm">Captured artifacts will appear here.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page: Submission Toast (overlay) -->
+            <div id="submission-toast" class="hidden absolute bottom-24 left-1/2 -translate-x-1.2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-lg">
+                <p>Artifact saved successfully!</p>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- Global variables ---
+        let currentPage = 'page-loading';
+        let cameraStream = null; // To store the active camera stream
+        let capturedImageData = null; // To store the captured image data URL
+
+        // --- Camera Functions ---
+        async function startCamera() {
+            const video = document.getElementById('camera-feed');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = stream;
+                cameraStream = stream;
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    video.srcObject = stream;
+                    cameraStream = stream;
+                } catch (fallbackErr) {
+                    console.error("Fallback camera error:", fallbackErr);
+                }
+            }
+        }
+
+        function stopCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+        }
+
+        // --- Page Navigation ---
+        function goToPage(pageId) {
+            if (currentPage === 'page-camera' && pageId !== 'page-camera') {
+                stopCamera();
+            }
+
+            // Hide all pages
+            document.getElementById('page-loading').classList.add('hidden');
+            document.getElementById('page-loading').classList.remove('flex');
+            document.getElementById('page-login').classList.add('hidden');
+            document.getElementById('page-login').classList.remove('flex');
+            document.getElementById('page-camera').classList.add('hidden');
+            document.getElementById('page-camera').classList.remove('flex');
+            document.getElementById('page-confirmation').classList.add('hidden');
+            document.getElementById('page-confirmation').classList.remove('flex');
+            document.getElementById('page-log').classList.add('hidden');
+            document.getElementById('page-log').classList.remove('flex');
+
+            // Show the target page
+            const targetPage = document.getElementById(pageId);
+            targetPage.classList.remove('hidden');
+            targetPage.classList.add('flex');
+            
+            currentPage = pageId;
+
+            // Start or load content for the target page
+            if (currentPage === 'page-camera') {
+                startCamera();
+            }
+            if (currentPage === 'page-log') {
+                loadArtifactLog();
+            }
+        }
+
+        // --- Camera & Artifact Handling ---
+        function takePicture() {
+            const video = document.getElementById('camera-feed');
+            const canvas = document.getElementById('image-canvas');
+            const preview = document.getElementById('artifact-image-preview');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            const ctx = canvas.getContext('2d');
+            
+            ctx.save();
+            ctx.scale(-1, 1); // Flip horizontally
+            ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+            ctx.restore();
+            
+            // Keep PNG for best quality local storage
+            capturedImageData = canvas.toDataURL('image/png');
+            
+            preview.src = capturedImageData;
+            
+            // --- REMOVED FAKE DATA ---
+            // User will now fill in the form manually.
+            document.getElementById('additional-info').value = '';
+            document.getElementById('user-name').value = 'Guest'; // Default user
+            
+            goToPage('page-confirmation');
+        }
+
+        // --- Local Storage Functions ---
+        function getArtifacts() {
+            const artifacts = localStorage.getItem('artifactLog');
+            return artifacts ? JSON.parse(artifacts) : [];
+        }
+
+        function saveArtifacts(artifacts) {
+            localStorage.setItem('artifactLog', JSON.stringify(artifacts));
+        }
+
+        // --- UPDATED: Submit artifact function ---
+        function submitArtifact() {
+            document.getElementById('submit-button').disabled = true;
+            try {
+                // Gather all new data
+                const artifact = {
+                    id: new Date().getTime(),
+                    imageData: capturedImageData,
+                    user: document.getElementById('user-name').value, // NEW
+                    material: document.getElementById('material-category').value,
+                    func: document.getElementById('function-category').value,
+                    notes: document.getElementById('additional-info').value,
+                    timestamp: new Date().toLocaleString(),
+                    reviewed: false // NEW: Default to not reviewed
+                };
+                
+                const artifacts = getArtifacts();
+                artifacts.unshift(artifact);
+                saveArtifacts(artifacts);
+
+                // Show success toast
+                const toast = document.getElementById('submission-toast');
+                toast.querySelector('p').textContent = 'Artifact saved successfully!';
+                toast.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    toast.classList.add('hidden');
+                    goToPage('page-camera');
+                }, 1500);
+
+            } catch (error) {
+                console.error('Error saving to Local Storage:', error);
+                if (error.name === 'QuotaExceededError') {
+                    // Handle storage full error
+                    console.error('Error: Storage is full. Please clear the log.');
+                    const toast = document.getElementById('submission-toast');
+                    toast.querySelector('p').textContent = 'Error: Storage is full.';
+                    toast.classList.remove('hidden');
+                     setTimeout(() => {
+                        toast.classList.add('hidden');
+                    }, 3000);
+                }
+            } finally {
+                document.getElementById('submit-button').disabled = false;
+                capturedImageData = null;
+            }
+        }
+
+        // --- UPDATED: Log Page Functions ---
+        function loadArtifactLog() {
+            const artifacts = getArtifacts();
+            const logContent = document.getElementById('log-content');
+            const emptyState = document.getElementById('log-empty-state');
+            
+            logContent.innerHTML = ''; // Clear old content
+            logContent.appendChild(emptyState); // Add empty state back
+
+            if (artifacts.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                
+                artifacts.forEach(artifact => {
+                    const card = document.createElement('div');
+                    card.className = 'p-3 bg-white border border-gray-200 rounded-lg shadow-sm';
+                    
+                    // Main content (Image + Text)
+                    const content = document.createElement('div');
+                    content.className = 'flex items-start space-x-3';
+
+                    const img = document.createElement('img');
+                    img.src = artifact.imageData;
+                    img.className = 'w-20 h-20 object-cover rounded-md bg-gray-100 flex-shrink-0';
+                    
+                    const details = document.createElement('div');
+                    details.className = 'flex-1 min-w-0'; // Added min-w-0 for proper truncation
+                    details.innerHTML = `
+                        <p class="font-semibold text-gray-800 truncate">${artifact.material} - ${artifact.func}</p>
+                        <p class="text-sm text-gray-600 truncate">Notes: ${artifact.notes || '...'}</p>
+                        <p class="text-sm text-gray-600">User: ${artifact.user}</p>
+                        <p class="text-xs text-gray-400 mt-1">${artifact.timestamp}</p>
+                    `;
+                    
+                    content.appendChild(img);
+                    content.appendChild(details);
+                    card.appendChild(content);
+
+                    // Actions (Downloads + Review Checkbox)
+                    const actions = document.createElement('div');
+                    actions.className = 'flex items-center justify-between mt-3 pt-3 border-t border-gray-100';
+
+                    // Download buttons
+                    const downloads = document.createElement('div');
+                    downloads.className = 'flex items-center space-x-2';
+                    downloads.innerHTML = `
+                        <button onclick="downloadPNG(${artifact.id})" class="text-sm px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200" title="Save PNG">PNG</button>
+                        <button onclick="downloadPDF(${artifact.id})" class="text-sm px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200" title="Save PDF">PDF</button>
+                    `;
+
+                    // NEW: Review Checkbox
+                    const review = document.createElement('div');
+                    review.className = 'flex items-center space-x-2';
+                    
+                    const check = document.createElement('input');
+                    check.type = 'checkbox';
+                    check.checked = artifact.reviewed;
+                    check.id = `review-${artifact.id}`;
+                    check.className = 'h-5 w-5 rounded text-brand-green focus:ring-green-700';
+                    check.onchange = () => toggleReview(artifact.id); // Save on change
+
+                    const label = document.createElement('label');
+                    label.htmlFor = `review-${artifact.id}`;
+                    label.className = 'text-sm font-medium text-gray-700';
+                    label.textContent = 'Reviewed';
+                    
+                    review.appendChild(check);
+                    review.appendChild(label);
+                    
+                    actions.appendChild(downloads);
+                    actions.appendChild(review);
+                    card.appendChild(actions);
+
+                    logContent.appendChild(card);
+                });
+            }
+        }
+
+        // NEW: Function to save review status
+        function toggleReview(id) {
+            const artifacts = getArtifacts();
+            const artifactIndex = artifacts.findIndex(a => a.id === id);
+            if (artifactIndex > -1) {
+                artifacts[artifactIndex].reviewed = !artifacts[artifactIndex].reviewed; // Flip the status
+                saveArtifacts(artifacts);
+            }
+        }
+
+        function clearLog() {
+            const btn = document.getElementById('clear-log-btn');
+            const originalIcon = btn.innerHTML; // Save the trash icon
+
+            if (btn.dataset.confirming) {
+                saveArtifacts([]);
+                loadArtifactLog();
+                btn.innerHTML = originalIcon;
+                btn.classList.remove('text-green-600');
+                btn.classList.add('text-red-600');
+                delete btn.dataset.confirming;
+            } else {
+                btn.dataset.confirming = 'true';
+                // Show a checkmark icon to confirm
+                btn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                `;
+                btn.classList.remove('text-red-600');
+                btn.classList.add('text-green-600'); // Green for confirm
+                
+                setTimeout(() => {
+                    if (btn.dataset.confirming) {
+                         btn.innerHTML = originalIcon;
+                         btn.classList.remove('text-green-600');
+                         btn.classList.add('text-red-600');
+                         delete btn.dataset.confirming;
+                    }
+                }, 3000);
+            }
+        }
+
+        // --- Helper function to trigger a download ---
+        function triggerDownload(url, filename) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            if (url.startsWith('blob:')) {
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        // --- Export Functions ---
+
+        function exportJSON() {
+            const artifacts = getArtifacts();
+            if (artifacts.length === 0) return;
+            const dataStr = JSON.stringify(artifacts, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            triggerDownload(url, 'artifact_log_backup.json');
+        }
+
+        // --- UPDATED: Excel .xlsx Export Function ---
+        function exportXLSX() {
+            const artifacts = getArtifacts();
+            if (artifacts.length === 0) {
+                console.warn("No artifacts to export.");
+                return;
+            }
+
+            // 1. Prepare data (text-only) based on new structure
+            const dataForSheet = artifacts.map(a => {
+                return {
+                    ID: a.id,
+                    Timestamp: a.timestamp,
+                    User: a.user,
+                    Category: `${a.material} - ${a.func}`,
+                    Notes: a.notes,
+                    Reviewed: a.reviewed // Will be true/false
+                };
+            });
+
+            // 2. Create a new "worksheet" from our data
+            const ws = XLSX.utils.json_to_sheet(dataForSheet);
+
+            // 3. Create a new "workbook"
+            const wb = XLSX.utils.book_new();
+
+            // 4. Add the worksheet to the workbook
+            XLSX.utils.book_append_sheet(wb, ws, "Artifacts");
+
+            // 5. Trigger the download of the .xlsx file
+            XLSX.writeFile(wb, "artifact_log.xlsx");
+        }
+
+
+        function downloadPNG(id) {
+            const artifact = getArtifacts().find(a => a.id === id);
+            if (artifact) {
+                triggerDownload(artifact.imageData, `artifact_${id}.png`);
+            }
+        }
+
+        // --- UPDATED: PDF Export Function ---
+        function downloadPDF(id) {
+            const artifact = getArtifacts().find(a => a.id === id);
+            if (!artifact) return;
+
+            const btn = document.querySelector(`button[onclick="downloadPDF(${id})"]`);
+            const originalText = btn.textContent;
+            btn.textContent = '...';
+            btn.disabled = true;
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4'); 
+
+            const pageW = doc.internal.pageSize.getWidth();
+            const margin = 15;
+            const contentW = pageW - (margin * 2);
+
+            const img = new Image();
+            img.onload = function() {
+                const imgW = this.naturalWidth;
+                const imgH = this.naturalHeight;
+                const ratio = imgH / imgW;
+                
+                const finalImgW = contentW;
+                const finalImgH = finalImgW * ratio;
+
+                doc.setFontSize(20);
+                doc.text('Artifact Report', margin, margin + 5);
+                
+                // Add all the new fields
+                doc.setFontSize(12);
+                let yPos = margin + 20;
+                doc.text(`Timestamp: ${artifact.timestamp}`, margin, yPos); yPos += 7;
+                doc.text(`User: ${artifact.user}`, margin, yPos); yPos += 7;
+                doc.text(`Material: ${artifact.material}`, margin, yPos); yPos += 7;
+                doc.text(`Function: ${artifact.func}`, margin, yPos); yPos += 7;
+                doc.text(`Reviewed: ${artifact.reviewed ? 'Yes' : 'No'}`, margin, yPos); yPos += 10;
+                
+                doc.text('Notes:', margin, yPos); yPos += 7;
+                const notesLines = doc.splitTextToSize(artifact.notes || 'N/A', contentW);
+                doc.text(notesLines, margin, yPos);
+                
+                let textHeight = yPos + (notesLines.length * 7); // Calculate end of text
+
+                // Add image, checking if it needs a new page
+                if (textHeight + finalImgH + 10 > doc.internal.pageSize.getHeight()) {
+                    doc.addPage();
+                    textHeight = margin; // Reset text height for new page
+                }
+
+                doc.addImage(artifact.imageData, 'PNG', margin, textHeight + 5, finalImgW, finalImgH);
+                
+                doc.save(`artifact_${id}.pdf`);
+                
+                // Restore button
+                btn.textContent = originalText;
+                btn.disabled = false;
+            };
+            img.onerror = function() {
+                console.error('Failed to load image for PDF generation.');
+                btn.textContent = 'Error';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }, 2000);
+            };
+            img.src = artifact.imageData;
+        }
+
+        // --- App Initialization ---
+        window.onload = () => {
+            setTimeout(() => {
+                goToPage('page-login');
+            }, 1500); // Shortened load time
+        };
+    </script>
+</body>
+</html>
+
+ 
