@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOB - Field Cataloger & Analyzer</title>
+    
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load Google Font 'Inter' -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Load jsPDF library for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Load SheetJS (xlsx.js) library for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- Load Firebase SDKs -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+
+    <!-- Archeology Theme Styles -->
+    <style>
+        :root {
+            --brand-green: #14532d; /* green-900 */
+            --brand-brown: #78350f; /* amber-900 */
+            --bg-sand: #f5f3ef;      /* stone-100 */
+            --bg-parchment: #fefcfb; /* neutral-50 */
+            --text-primary: #1c1917; /* stone-900 */
+            --text-secondary: #57534e; /* stone-600 */
+            --border-color: #d6d3d1; /* stone-300 */
+            --shadow-color-light: rgba(0, 0, 0, 0.05); /* Lighter shadow */
+            --shadow-color-dark: rgba(0, 0, 0, 0.1); /* Lighter shadow */
+
+            --bg-dark-brown: #2d2620; /* A very dark, desaturated brown */
+        }
+
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: var(--bg-sand);
+            color: var(--text-primary);
+        }
+
+        input, button, select, textarea {
+            font-family: "Inter", sans-serif;
+        }
+
+        .app-container {
+            background-color: var(--bg-parchment);
+            box-shadow: 0 10px 25px -5px var(--shadow-color-dark), 0 8px 10px -6px var(--shadow-color-dark);
+            border: 1px solid var(--border-color);
+        }
+
+        .bg-brand-green { background-color: var(--brand-green); }
+        .text-brand-green { color: var(--brand-green); }
+        .hover\:bg-brand-green-dark:hover { background-color: #1a422a; }
+        .bg-brand-brown { background-color: var(--brand-brown); }
+        .text-brand-brown { color: var(--brand-brown); }
+        .hover\:text-brand-brown:hover { color: var(--brand-brown); }
+        .border-brand-brown { border-color: var(--brand-brown); }
+        .bg-dark-brown { background-color: var(--bg-dark-brown); }
+        .text-primary { color: var(--text-primary); }
+        .text-secondary { color: var(--text-secondary); }
+        .border-default { border-color: var(--border-color); }
+        .bg-sand { background-color: var(--bg-sand); }
+        
+        .form-input {
+            border: 1px solid var(--border-color);
+            transition: all 150ms ease-in-out;
+            box-shadow: 0 1px 2px 0 var(--shadow-color-light);
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: var(--brand-green);
+            box-shadow: 0 0 0 3px rgba(20, 83, 45, 0.2);
+        }
+        .form-input[readonly] {
+            background-color: var(--bg-sand);
+            color: var(--text-secondary);
+            cursor: default;
+        }
+        .form-input[readonly]:focus {
+            border-color: var(--border-color);
+            box-shadow: 0 1px 2px 0 var(--shadow-color-light);
+        }
+        
+        .form-checkbox {
+            color: var(--brand-green);
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-left-color: #ffffff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        #camera-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror mode for selfie cam, but we use environment */
+        }
+        #image-canvas {
+            display: none;
+        }
+
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 200ms ease-in-out;
+            pointer-events: none;
+            z-index: 50;
+        }
+        .modal-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-box {
+            background-color: var(--bg-parchment);
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%;
+            max-width: 320px;
+            transform: scale(0.95);
+            transition: transform 200ms ease-in-out;
+            box-shadow: 0 10px 25px -5px var(--shadow-color-dark), 0 8px 10px -6px var(--shadow-color-dark);
+        }
+        .modal-overlay.show .modal-box {
+            transform: scale(1);
+        }
+
+        .menu-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background-color: white;
+            box-shadow: 0 4px 6px -1px var(--shadow-color-dark), 0 2px 4px -2px var(--shadow-color-dark);
+            transition: all 150ms ease-in-out;
+        }
+        .menu-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px var(--shadow-color-dark), 0 4px 6px -4px var(--shadow-color-dark);
+            border-color: var(--brand-brown);
+        }
+        .menu-button:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 6px -1px var(--shadow-color-dark), 0 2px 4px -2px var(--shadow-color-dark);
+        }
+        .menu-button-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 12px;
+        }
+        .menu-button-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .menu-button-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main App Container -->
+    <div class="app-container w-full max-w-sm mx-auto rounded-2xl overflow-hidden" style="height: 80vh; min-height: 600px;">
+        <div id="app-content" class="h-full relative">
+            
+            <!-- Page: Loading Screen (Default) -->
+            <div id="page-loading" class="flex flex-col items-center justify-center h-full bg-brand-green text-white p-8">
+                <!-- Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-24 h-24 mb-6" fill="none" stroke="currentColor" stroke-width="6">
+                    <!-- Magnifying glass circle -->
+                    <circle cx="45" cy="45" r="30"></circle>
+                    <!-- Magnifying glass handle -->
+                    <line x1="68" y1="68" x2="85" y2="85" stroke-linecap="round"></line>
+                    <!-- Text "BOB" inside the glass -->
+                    <text x="45" y="52" font-family="Inter, sans-serif" font-weight="bold" font-size="24" fill="currentColor" stroke="none" text-anchor="middle">
+                        BOB
+                    </text>
+                </svg>
+                <h1 class="text-4xl font-bold mb-4">BOB</h1>
+                <p class="text-lg text-green-200 mb-8">Field Artifact Cataloger</p>
+                <div class="spinner"></div>
+            </div>
+
+            <!-- Page: Login -->
+            <div id="page-login" class="hidden flex-col h-full p-8 justify-center">
+                <!-- Content -->
+                <div class="flex-shrink-0 text-center">
+                    <img src="https://i.postimg.cc/nr7NVXnW/Gemini-Generated-Image-6ypkkm6ypkkm6ypk.png" alt="Artifact Analyzer Logo" class="w-32 h-32 mx-auto rounded-full mb-4 bg-brand-green object-cover transform -rotate-90">
+                    <h1 class="text-3xl font-bold text-primary">Welcome to BOB</h1>
+                    <p class="text-secondary mt-2">Log in to your account</p>
+                </div>
+                <div class="flex flex-col space-y-4 mt-12">
+                    <!-- === GOOGLE SIGN IN BUTTON REMOVED === -->
+                    <!-- === APPLE SIGN IN BUTTON REMOVED === -->
+                    <button id="btn-login-guest" class="w-full px-4 py-3 border border-transparent rounded-lg shadow-sm bg-brand-green text-white font-medium hover:bg-brand-green-dark">
+                        Sign in as Guest
+                    </button>
+                    
+                    <!-- === SIGN UP BUTTON REMOVED === -->
+                </div>
+                
+                <!-- === TEXT BUTTON REMOVED === -->
+            </div>
+
+            <!-- Page: Main Menu -->
+            <div id="page-menu" class="hidden flex-col h-full">
+                <!-- Header -->
+                <div class="flex-shrink-0 flex items-center justify-between p-4 border-b border-default">
+                    <h2 class="text-lg font-semibold text-primary">Main Menu</h2>
+                    <button id="btn-menu-logout" class="text-secondary hover:text-brand-brown p-2" title="Log Out">
+                        <!-- Logout Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"></path>
+                        </svg>
+                        <span class="sr-only">Log Out</span>
+                    </button>
+                </div>
+                <!-- Content -->
+                <div class="flex-grow overflow-y-auto p-6 space-y-6">
+                    <button id="btn-menu-scan" class="menu-button">
+                        <!-- Scan Artifact Icon (Emoji) -->
+                        <span class="menu-button-icon">🖌️🏺</span>
+                        <span class="menu-button-title">Scan Artifact</span>
+                        <span class="menu-button-subtitle">Open camera for AI analysis & log</span>
+                    </button>
+
+                    <!-- === COLLABORATE BUTTON REMOVED === -->
+                    
+                    <button id="btn-menu-catalog" class="menu-button">
+                        <!-- Local Log Icon -->
+                         <span class="menu-button-icon">📜</span>
+                        <span class="menu-button-title">Catalog</span>
+                        <span class="menu-button-subtitle">Review previously saved items</span>
+                    </button>
+                </div>
+            </div>
+
+
+            <!-- Page: Camera -->
+            <div id="page-camera" class="hidden flex-col h-full bg-dark-brown">
+                <!-- Header with Log Button -->
+                <div class="flex-shrink-0 flex items-center justify-between h-16 bg-dark-brown text-white p-4">
+                    <!-- Back Button -->
+                    <button id="btn-camera-back" class="p-2 rounded-lg hover:bg-stone-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+                        </svg>
+                        <span class="sr-only">Back to Menu</span>
+                    </button>
+
+                    <h2 class="text-lg font-semibold">New Artifact</h2>
+                    <div class="w-8"></div> <!-- Spacer -->
+                </div>
+
+                <!-- Real camera view -->
+                <div class="flex-grow relative bg-stone-800 overflow-hidden">
+                    <video id="camera-feed" playsinline="" autoplay="" muted=""></video>
+                </div>
+                
+                <!-- Hidden canvas for capturing images -->
+                <canvas id="image-canvas"></canvas>
+
+                <!-- Controls -->
+                <div class="flex-shrink-0 flex items-center justify-center h-28 bg-dark-brown">
+                    <button id="btn-take-picture" class="w-20 h-20 rounded-full bg-sand flex items-center justify-center shadow-lg transition-transform active:scale-95">
+                        <div class="w-16 h-16 rounded-full border-4 border-brand-brown"></div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Page: Confirmation (AI-Driven) -->
+            <div id="page-confirmation" class="hidden flex-col h-full">
+                <!-- Header -->
+                <div class="flex-shrink-0 flex items-center justify-between p-4 border-b border-default">
+                    <button id="btn-confirm-cancel" class="text-secondary hover:text-brand-brown p-2 rounded-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"></path>
+                        </svg>
+                        <span class="sr-only">Cancel</span>
+                    </button>
+                    <h2 class="text-lg font-semibold text-primary">Confirm Analysis</h2>
+                    <button id="submit-button" class="px-5 py-2 bg-brand-green text-white rounded-lg font-medium hover:bg-brand-green-dark active:scale-95 transition-transform disabled:opacity-50" disabled="">
+                        Save
+                    </button>
+                </div>
+                
+                <!-- Content -->
+                <div class="flex-grow overflow-y-auto p-6 space-y-6">
+                    <!-- Image Preview -->
+                    <div>
+                        <img id="artifact-image-preview" src="https://placehold.co/600x400/cccccc/999999?text=Artifact+Image" alt="Artifact Preview" class="w-full rounded-lg shadow-md aspect-video object-cover" onerror="this.src='https://placehold.co/600x400/cccccc/999999?text=Artifact+Image'">
+                    </div>
+
+                    <!-- AI Status -->
+                    <div class="p-4 rounded-lg shadow-inner bg-stone-100 border border-stone-200">
+                        <p class="text-sm font-medium text-secondary mb-1">AI Classification Status</p>
+                        <p id="ai-status" class="text-lg font-bold text-stone-900">Running...</p>
+                    </div>
+
+                    <!-- AI Description -->
+                    <div>
+                        <label for="ai-description-input" class="block text-sm font-medium text-secondary mb-1">AI Description</label>
+                        <textarea id="ai-description-input" rows="4" class="form-input w-full px-3 py-2 rounded-lg" readonly=""></textarea>
+                    </div>
+                    
+                    <!-- Metadata -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-secondary mb-1">User</label>
+                            <input type="text" id="user-name" value="Guest" class="form-input w-full px-3 py-2 rounded-lg" readonly="">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-secondary mb-1">Dimensions</label>
+                            <input type="text" id="dimensions-input" value="N/A" class="form-input w-full px-3 py-2 rounded-lg" readonly="">
+                        </div>
+                    </div>
+
+                    <!-- Additional Info -->
+                    <div>
+                        <label for="additional-info" class="block text-sm font-medium text-secondary mb-1">Additional Notes (Editable)</label>
+                        <textarea id="additional-info" rows="3" class="form-input w-full px-3 py-2 rounded-lg" placeholder="Add field notes, measurements, or context..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page - Artifact Catalog ("Virtual Sheet") -->
+            <div id="page-catalog" class="hidden flex-col h-full">
+                <!-- Header with Export Buttons -->
+                <div class="flex-shrink-0 flex items-center justify-between p-4 border-b border-default">
+                    <!-- Back Button -->
+                    <button id="btn-catalog-back" class="text-secondary hover:text-brand-brown p-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+                        </svg>
+                        <span class="sr-only">Back to Menu</span>
+                    </button>
+                    <h2 class="text-lg font-semibold text-primary">Artifact Catalog</h2>
+                    <!-- Export buttons group -->
+                    <div class="flex items-center space-x-2">
+                        <!-- Excel Export Button -->
+                        <button id="btn-export-xlsx" class="text-secondary hover:text-brand-brown p-2" title="Export All as Excel (.xlsx)">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"></path>
+                            </svg>
+                            <span class="sr-only">Export as Excel</span>
+                        </button>
+                        <button id="btn-export-json" class="text-secondary hover:text-brand-brown p-2" title="Export All as JSON">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5 0-4.5 16.5"></path>
+                            </svg>
+                            <span class="sr-only">Export as JSON</span>
+                        </button>
+                         <button id="clear-catalog-btn" class="text-red-600 hover:text-red-800 p-2" title="Clear Catalog">
+                            <!-- Trash Icon -->
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.54 0c.04.03.079.062.118.095m-9.345 0c.079.056.159.113.239.17M9 10.5h.008v.008H9v-.008Zm4.5 0h.008v.008H13.5v-.008Zm4.5 0h.008v.008H18v-.008Zm-4.5-4.5h.008v.008H13.5v-.008Zm0 9h.008v.008H13.5v-.008Zm-4.5 0h.008v.008H9v-.008Z"></path>
+                            </svg>
+                            <span class="sr-only">Clear Catalog</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Log card template (for JS) -->
+                <template id="catalog-card-template">
+                    <div class="p-3 bg-white border border-default rounded-xl shadow-md shadow-shadow-color-light">
+                        <!-- Main content (Image + Text) -->
+                        <div class="flex items-start space-x-3">
+                            <img src="" alt="Artifact" class="artifact-img w-20 h-20 object-cover rounded-lg bg-stone-100 flex-shrink-0">
+                            <div class="flex-1 min-w-0">
+                                <p class="artifact-description font-semibold text-primary truncate">Stone - Tool</p>
+                                <p class="artifact-notes text-sm text-secondary truncate">Notes: ...</p>
+                                <p class="artifact-user text-sm text-secondary">User: Guest</p>
+                                <p class="artifact-timestamp text-xs text-stone-400 mt-1">10/25/2025, 3:00 PM</p>
+                            </div>
+                            <!-- Delete Button Container -->
+                            <div class="flex-shrink-0">
+                                <button class="btn-delete-entry text-red-600 hover:text-red-800 p-1" title="Delete Entry">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.54 0c.04.03.079.062.118.095m-9.345 0c.079.056.159.113.239.17M9 10.5h.008v.008H9v-.008Zm4.5 0h.008v.008H13.5v-.008Zm4.5 0h.008v.008H18v-.008Zm-4.5-4.5h.008v.008H13.5v-.008Zm0 9h.008v.008H13.5v-.008Zm-4.5 0h.008v.008H9v-.008Z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Actions (Downloads + Review Checkbox) -->
+                        <div class="flex items-center justify-between mt-3 pt-3 border-t border-stone-200">
+                            <div class="flex items-center space-x-2">
+                                <button class="btn-png text-sm px-3 py-1 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors flex items-center space-x-1" title="Save PNG">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"></path></svg>
+                                    <span>PNG</span>
+                                </button>
+                                <button class="btn-pdf text-sm px-3 py-1 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors flex items-center space-x-1" title="Save PDF">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"></path></svg>
+                                    <span>PDF</span>
+                                </button>
+                                <button class="btn-xlsx text-sm px-3 py-1 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors flex items-center space-x-1" title="Save XLSX">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"></path></svg>
+                                    <span>XLSX</span>
+                                </button>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <label class="review-label text-sm font-medium text-secondary">Reviewed</label>
+                                <input type="checkbox" class="review-checkbox form-checkbox h-5 w-5 rounded">
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Log Content -->
+                <div id="catalog-content" class="flex-grow overflow-y-auto p-4 space-y-4">
+                    <!-- Artifact entries will be dynamically added here -->
+                    <div id="catalog-empty-state" class="text-center text-stone-500 pt-16">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-stone-400">
+                           <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"></path>
+                        </svg>
+                        <h3 class="text-lg font-medium">Catalog is Empty</h3>
+                        <p class="text-sm">Captured artifacts will appear here.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- === COLLABORATE PAGE REMOVED === -->
+
+            <!-- Page: Submission Toast (overlay) -->
+            <div id="submission-toast" class="hidden absolute bottom-24 left-1/2 -translate-x-1/2 bg-brand-brown text-white px-6 py-3 rounded-full shadow-lg z-20">
+                <p>Artifact saved successfully!</p>
+            </div>
+
+            <!-- Delete Confirmation Modal (overlay) -->
+            <div id="delete-modal" class="modal-overlay">
+                <div class="modal-box">
+                    <h3 class="text-lg font-bold text-primary mb-2">Delete Entry</h3>
+                    <p id="delete-modal-text" class="text-secondary mb-6">Are you sure you want to permanently delete this entry?</p>
+                    <div class="flex justify-end space-x-3">
+                        <button id="btn-modal-cancel" class="px-5 py-2 bg-stone-200 text-stone-800 rounded-lg font-medium hover:bg-stone-300">
+                            Cancel
+                        </button>
+                        <button id="btn-modal-delete" class="px-5 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700">
+                            Yes, Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- === NEW EXPORT CONFIRMATION MODAL === -->
+            <div id="export-modal" class="modal-overlay">
+                <div class="modal-box">
+                    <h3 id="export-modal-title" class="text-lg font-bold text-primary mb-2">Confirm Export</h3>
+                    <p id="export-modal-text" class="text-secondary mb-6">Are you sure you want to export the entire catalog?</p>
+                    <div class="flex justify-end space-x-3">
+                        <button id="btn-modal-export-cancel" class="px-5 py-2 bg-stone-200 text-stone-800 rounded-lg font-medium hover:bg-stone-300">
+                            Cancel
+                        </button>
+                        <button id="btn-modal-export-confirm" class="px-5 py-2 bg-brand-green text-white rounded-lg font-medium hover:bg-brand-green-dark">
+                            Yes, Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- === END NEW MODAL === -->
+
+        </div>
+    </div>
+
+    <!--
+      The type="module" script block now contains all the JavaScript logic,
+      including Firebase initialization, setup, and core app functions.
+    -->
+    <script type="module">
+        // --- Firebase Imports ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged,
+            signOut 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            onSnapshot, 
+            query, 
+            serverTimestamp,
+            setLogLevel,
+            deleteDoc,
+            doc,
+            setDoc, // Import setDoc for the review toggle
+            writeBatch, // Import writeBatch for clearing the catalog
+            getDocs // Import getDocs for clearing the catalog
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Global Firebase variables (initialized later) ---
+        let db, auth, userId, app;
+
+        // --- App ID and Firebase Config (from environment) ---
+        // NOTE: These variables are automatically injected by the Canvas environment.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // --- Global variables for App State ---
+        let currentPage = 'page-loading';
+        let cameraStream = null;
+        let capturedImageData = null;
+        let artifactIdToDelete = null; // Can be a single ID or 'all'
+        let aiAnalysisData = null; // Stores the results from AI before saving
+        let catalogUnsubscribe = null; // Function to stop the Firestore listener
+
+        // --- DOM Element References ---
+        let pages = {}; // Will be populated in window.onload
+        let submissionToast;
+        
+        // Confirmation Page Elements
+        let aiStatusEl;
+        let aiDescriptionInput;
+        let dimensionsInput;
+        let userNameInput;
+        let additionalInfoTextarea;
+        let submitButton;
+        let artifactImagePreview;
+        
+        // Camera Elements
+        let cameraFeed;
+        let imageCanvas;
+
+        // Catalog Elements
+        let catalogContent;
+        let catalogEmptyState;
+        let catalogCardTemplate;
+
+        // Modal Elements
+        let deleteModal;
+        let deleteModalText;
+        let btnModalCancel;
+        let btnModalDelete;
+        
+        // --- NEW: Export Modal Elements ---
+        let exportModal;
+        let exportModalTitle;
+        let exportModalText;
+        let btnModalExportCancel;
+        let btnModalExportConfirm;
+        let exportTypeToConfirm = null; // 'xlsx' or 'json'
+
+
+        /**
+         * Calls the Gemini API to classify and describe an artifact image.
+         * @param {string} base64Data - The Base64 encoded image data (without the data: prefix).
+         * @param {string} mimeType - The image MIME type (e.g., 'image/png').
+         * @param {number} width - The image width.
+         * @param {number} height - The image height.
+         * @returns {Promise<object>} An object containing the analysis results.
+         */
+        async function analyzeArtifactImage(base64Data, mimeType, width, height) {
+            // --- Gemini API Call ---
+            const apiKey = ""; // Leave empty - Provided by Canvas environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            // --- REFINED PROMPT ---
+            const prompt = `
+You are an archaeologist analyzing an image potentially from a field site.
+Your task is to determine if the primary object shown is an ARCHAEOLOGICAL artifact or simply a natural object/modern debris.
+- ARCHAEOLOGICAL artifacts are typically ancient, man-made items relevant to historical study (e.g., pottery shards, stone tools, old coins, fossils with clear human modification).
+- DO NOT classify modern manufactured items (like electronics, plastic, recent tools, etc.) or purely natural objects (like regular rocks, leaves, clouds) as artifacts in this context.
+
+1. Classify the main object: Is it an "Archaeological Artifact" or "Not an Archaeological Artifact"?
+2. Provide a concise description (1-2 sentences). If it's an artifact, suggest potential material/origin/function/period. If not, briefly describe what it appears to be.
+3. Identify the primary material (e.g., Ceramic, Stone, Metal, Modern Plastic, Wood, N/A).
+
+Format the response EXACTLY like this, with each part on a new line:
+Classification: [Archaeological Artifact / Not an Archaeological Artifact]
+Description: [Your description here]
+Material: [Your material identification here]
+            `.trim();
+            // --- END REFINED PROMPT ---
+
+
+            const payload = {
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            { text: prompt },
+                            {
+                                inlineData: {
+                                    mimeType: mimeType,
+                                    data: base64Data
+                                }
+                            }
+                        ]
+                    }
+                ],
+            };
+
+            let attempts = 0;
+            const maxAttempts = 5;
+            let delay = 1000; // Initial delay 1 second
+
+            while (attempts < maxAttempts) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 429 || response.status >= 500) {
+                             console.warn(`API call failed with status ${response.status}. Retrying in ${delay / 1000}s...`);
+                             await new Promise(resolve => setTimeout(resolve, delay));
+                             delay *= 2;
+                             attempts++;
+                             continue;
+                        } else {
+                            const errorText = await response.text();
+                            console.error(`API Error ${response.status}: ${errorText}`);
+                            throw new Error(`API request failed with status ${response.status}`);
+                        }
+                    }
+
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+                    const generatedText = candidate?.content?.parts?.[0]?.text;
+
+                    // *** ADDED CONSOLE LOG FOR RAW RESPONSE ***
+                    console.log("Raw Gemini Response Text:\n", generatedText);
+                    // *******************************************
+
+                    if (!generatedText) {
+                         console.error("Invalid response structure from API:", result);
+                        throw new Error("Could not extract text from Gemini response.");
+                    }
+
+                    // --- Parse the Gemini Response ---
+                    let isArtifact = false;
+                    let description = "AI analysis could not be parsed.";
+                    let material = "N/A";
+
+                    // Updated Regex to look for "Archaeological Artifact" specifically
+                    const classificationMatch = generatedText.match(/Classification:\s*(.+)/i);
+                    const descriptionMatch = generatedText.match(/Description:\s*(.+)/i);
+                    const materialMatch = generatedText.match(/Material:\s*(.+)/i);
+
+                    // Check specifically for "Archaeological Artifact"
+                    if (classificationMatch && classificationMatch[1].trim().toLowerCase() === 'archaeological artifact') {
+                        isArtifact = true;
+                    } else if (classificationMatch) {
+                        // Log if it classified but not as the expected string
+                        console.log("Gemini Classification:", classificationMatch[1].trim());
+                    }
+
+                    if (descriptionMatch) {
+                        description = descriptionMatch[1].trim();
+                    }
+                     if (materialMatch) {
+                         material = materialMatch[1].trim();
+                    }
+
+
+                    // --- Calculate Dimensions (Local) ---
+                    const ratio = width / height;
+                    let proportions;
+                    if (ratio > 1.2) {
+                        proportions = `Wide (Ratio: ${ratio.toFixed(2)})`;
+                    } else if (ratio < 0.8) {
+                        proportions = `Tall (Ratio: ${ratio.toFixed(2)})`;
+                    } else {
+                        proportions = `Square-ish (Ratio: ${ratio.toFixed(2)})`;
+                    }
+                    const pixelDimensions = `${width}px (w) x ${height}px (h)`;
+
+                    return {
+                        isArtifact,
+                        description,
+                        material,
+                        pixelDimensions,
+                        proportions
+                    };
+
+                } catch (error) {
+                    console.error('Error during AI analysis:', error);
+                    throw error;
+                }
+            }
+             // If loop finishes without success
+            console.error(`API call failed after ${maxAttempts} attempts.`);
+            throw new Error(`API call failed after ${maxAttempts} attempts.`);
+        }
+
+        // --- Camera & Artifact Handling ---
+        function startCamera() {
+            if (cameraStream) return;
+            // Prefer environment (rear) camera
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                .then(stream => {
+                    cameraFeed.srcObject = stream;
+                    cameraStream = stream;
+                    // Ensure the video feed is not mirrored if it's the back camera
+                    cameraFeed.style.transform = 'scaleX(1)';
+                })
+                .catch(err => {
+                    console.warn("Could not get environment camera, trying default:", err);
+                    // Fallback to default (likely front) camera
+                    navigator.mediaDevices.getUserMedia({ video: true })
+                        .then(stream => {
+                            cameraFeed.srcObject = stream;
+                            cameraStream = stream;
+                            // Mirror the front camera so it looks natural
+                            cameraFeed.style.transform = 'scaleX(-1)'; 
+                        })
+                        .catch(err2 => {
+                            console.error("Error accessing any camera:", err2);
+                            showToast("Error: Could not access camera. Check permissions.", true);
+                        });
+                });
+        }
+
+        function stopCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+                cameraFeed.srcObject = null;
+            }
+        }
+
+        async function takePicture() {
+            if (!cameraStream) {
+                console.error("Camera is not active.");
+                showToast("Camera not ready.", true);
+                return;
+            }
+            
+            // Capture image to canvas
+            const ctx = imageCanvas.getContext('2d');
+            imageCanvas.width = cameraFeed.videoWidth;
+            imageCanvas.height = cameraFeed.videoHeight;
+
+            ctx.save();
+            // Check if we are using the front camera (which is flipped) and correct the snapshot
+            if (cameraFeed.style.transform === "scaleX(-1)") {
+                 ctx.scale(-1, 1);
+                 ctx.drawImage(cameraFeed, -imageCanvas.width, 0, imageCanvas.width, imageCanvas.height);
+            } else {
+                 ctx.drawImage(cameraFeed, 0, 0, imageCanvas.width, imageCanvas.height);
+            }
+            ctx.restore();
+            
+            // Get data
+            capturedImageData = imageCanvas.toDataURL('image/png');
+            
+            // Navigate and show loading state
+            goToPage('confirmation');
+            aiStatusEl.textContent = "AI Analysis Running...";
+            submitButton.disabled = true;
+            artifactImagePreview.src = capturedImageData;
+            
+            // Perform simulated AI Analysis
+            try {
+                const base64Data = capturedImageData.split(',')[1];
+                const mimeType = 'image/png';
+                aiAnalysisData = await analyzeArtifactImage(
+                    base64Data, 
+                    mimeType, 
+                    imageCanvas.width, 
+                    imageCanvas.height
+                );
+
+                // *** ADDED CONSOLE LOG FOR DEBUGGING ***
+                console.log("AI Analysis Result:", aiAnalysisData);
+                console.log("Value used for isArtifact:", aiAnalysisData.isArtifact);
+                // ****************************************
+
+                // Update UI with results
+                const statusText = aiAnalysisData.isArtifact ? 'Artifact Confirmed' : 'Not Artifact';
+                const statusColor = aiAnalysisData.isArtifact ? 'text-green-700' : 'text-red-700';
+
+                aiStatusEl.innerHTML = `<span class="${statusColor}">${statusText}</span>`;
+                aiDescriptionInput.value = aiAnalysisData.description;
+                dimensionsInput.value = aiAnalysisData.pixelDimensions;
+                
+                // Set default notes to contain material from AI (if confirmed)
+                if (aiAnalysisData.isArtifact) {
+                    additionalInfoTextarea.value = `AI identified as: ${aiAnalysisData.material}`;
+                } else {
+                     additionalInfoTextarea.value = `Image was unclassified by AI.`;
+                }
+                
+                submitButton.disabled = false;
+
+            } catch (e) {
+                console.error("Analysis failed:", e);
+                aiStatusEl.textContent = "Analysis Failed";
+                aiDescriptionInput.value = "Unable to generate analysis. See console for error.";
+                // Keep submit button disabled on error
+            }
+        }
+
+        // --- Page Navigation ---
+        function goToPage(pageId) {
+            // Stop camera if navigating away from it
+            if (currentPage === 'camera' && pageId !== 'camera') {
+                stopCamera();
+            }
+
+            // --- FIX: Detach Firestore listener if navigating away from catalog ---
+            if (currentPage === 'catalog' && pageId !== 'catalog') {
+                if (catalogUnsubscribe) {
+                    console.log("Detaching catalog listener.");
+                    catalogUnsubscribe(); // Stop listener
+                    catalogUnsubscribe = null;
+                }
+            }
+
+            for (const id in pages) {
+                pages[id].classList.add('hidden');
+                pages[id].classList.remove('flex');
+            }
+
+            const targetPage = pages[pageId];
+            if (targetPage) {
+                targetPage.classList.remove('hidden');
+                targetPage.classList.add('flex');
+                currentPage = pageId;
+            } else {
+                // Fallback to login if page doesn't exist
+                pages.login.classList.remove('hidden');
+                pages.login.classList.add('flex');
+                currentPage = 'login';
+            }
+            
+            // Start camera if navigating to it
+            if (currentPage === 'camera') {
+                startCamera();
+            }
+            // Start catalog listener if navigating to it
+            if (currentPage === 'catalog') {
+                loadArtifactCatalog();
+            }
+        }
+
+        // --- Data Persistence (Firestore) ---
+        async function submitArtifact() {
+            if (!capturedImageData || submitButton.disabled || !aiAnalysisData) {
+                console.error("Missing data to save.");
+                return;
+            }
+
+            submitButton.disabled = true;
+            submitButton.textContent = "Saving...";
+
+            const artifactData = {
+                // User & Metadata
+                userId: userId,
+                user: userNameInput.value || "Anonymous",
+                timestamp: serverTimestamp(),
+                
+                // Artifact Data
+                imageData: capturedImageData,
+                notes: additionalInfoTextarea.value || 'No notes added.',
+                reviewed: false,
+
+                // AI Data
+                isArtifact: aiAnalysisData.isArtifact,
+                aiDescription: aiAnalysisData.description,
+                material: aiAnalysisData.material,
+                dimensions: aiAnalysisData.pixelDimensions,
+                proportions: aiAnalysisData.proportions
+            };
+            
+            try {
+                const colPath = `/artifacts/${appId}/users/${userId}/catalog`;
+                await addDoc(collection(db, colPath), artifactData);
+                
+                showToast("Artifact saved successfully!");
+                
+                // Clean up and go back
+                setTimeout(() => {
+                    submitButton.textContent = "Save";
+                    submitButton.disabled = false; // Re-enable for next time
+                    capturedImageData = null;
+                    aiAnalysisData = null;
+                    additionalInfoTextarea.value = ""; // Clear notes
+                    goToPage('camera'); // Go back to camera, not menu
+                }, 1500); 
+
+            } catch (e) {
+                console.error('Failed to save artifact to Firestore:', e);
+                showToast("Error saving data. See console.", true);
+                submitButton.textContent = "Save";
+                submitButton.disabled = false;
+            }
+        }
+
+        // --- Catalog Page Functions (Firestore Real-time) ---
+        function loadArtifactCatalog() {
+            if (!userId) {
+                catalogContent.innerHTML = '<p class="p-4 text-red-500">Authentication error: Cannot load catalog.</p>';
+                return;
+            }
+            
+            // --- FIX: Only attach listener if one isn't already active ---
+            if (catalogUnsubscribe) {
+                console.log("Catalog listener already active.");
+                return;
+            }
+
+            const colPath = `/artifacts/${appId}/users/${userId}/catalog`;
+            const q = query(collection(db, colPath));
+
+            console.log("Attaching catalog listener.");
+            catalogUnsubscribe = onSnapshot(q, (snapshot) => {
+                if (!userId) { 
+                    console.warn("Catalog listener fired but user is logged out.");
+                    if(catalogUnsubscribe) catalogUnsubscribe();
+                    catalogUnsubscribe = null;
+                    return; 
+                }
+
+                const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Sort by timestamp newest first (client-side)
+                docs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+
+                catalogContent.innerHTML = '';
+                catalogContent.appendChild(catalogEmptyState); 
+
+                if (docs.length === 0) {
+                    catalogEmptyState.classList.remove('hidden');
+                } else {
+                    catalogEmptyState.classList.add('hidden');
+                    
+                    docs.forEach(artifact => {
+                        const card = catalogCardTemplate.content.cloneNode(true).firstElementChild;
+                        
+                        // Populate card
+                        const img = card.querySelector('.artifact-img');
+                        img.src = artifact.imageData;
+                        img.alt = artifact.aiDescription || 'No description';
+                        
+                        const statusColor = artifact.isArtifact ? 'text-green-700' : 'text-red-700';
+                        const statusText = artifact.isArtifact ? 'Artifact Confirmed' : 'Unclassified';
+
+                        // The description field now shows the AI status + a short description
+                        card.querySelector('.artifact-description').innerHTML = `<span class="${statusColor} font-bold">${statusText}</span>: ${artifact.aiDescription.substring(0, 50)}...`;
+                        card.querySelector('.artifact-notes').textContent = `Notes: ${artifact.notes || '...'}`;
+                        card.querySelector('.artifact-user').textContent = `User: ${artifact.user}`;
+                        const date = artifact.timestamp ? new Date(artifact.timestamp.toMillis()).toLocaleString() : 'Saving...';
+                        card.querySelector('.artifact-timestamp').textContent = date;
+                        
+                        // Set unique ID for PDF/XLSX downloads
+                        card.dataset.id = artifact.id;
+
+                        // --- Set up actions for this specific card ---
+                        card.querySelector('.btn-png').onclick = (e) => { downloadPNG(artifact.imageData, artifact.id); };
+                        card.querySelector('.btn-pdf').onclick = (e) => { downloadPDF(artifact, e.currentTarget); };
+                        card.querySelector('.btn-xlsx').onclick = (e) => { downloadSingleXLSX(artifact); };
+                        card.querySelector('.btn-delete-entry').onclick = () => { deleteEntry(artifact.id); };
+                        
+                        // Review Checkbox logic (saving back to Firestore)
+                        const checkbox = card.querySelector('.review-checkbox');
+                        checkbox.checked = artifact.reviewed;
+                        checkbox.onchange = () => toggleReview(artifact.id, checkbox.checked);
+
+                        catalogContent.appendChild(card);
+                    });
+                }
+            }, (error) => {
+                console.error("Firestore snapshot error:", error);
+                showToast("Error loading catalog. See console.", true);
+                catalogContent.innerHTML = `<p class="p-4 text-red-500">Error loading real-time catalog.</p>`;
+            });
+        }
+
+        async function toggleReview(id, checked) {
+             try {
+                const docRef = doc(db, `/artifacts/${appId}/users/${userId}/catalog`, id);
+                await setDoc(docRef, { reviewed: checked }, { merge: true });
+            } catch (e) {
+                console.error("Error updating review status:", e);
+                showToast("Error updating review status.", true);
+            }
+        }
+
+        async function performDelete() {
+            if (artifactIdToDelete === null) return;
+
+            try {
+                if (artifactIdToDelete === 'all') {
+                    // --- FIX: Handle deleting all documents ---
+                    console.log("Deleting all catalog entries for user:", userId);
+                    const colPath = `/artifacts/${appId}/users/${userId}/catalog`;
+                    const q = query(collection(db, colPath));
+                    const snapshot = await getDocs(q);
+                    
+                    const batch = writeBatch(db);
+                    snapshot.docs.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    await batch.commit();
+                    showToast("Catalog cleared successfully!");
+
+                } else {
+                    // --- Handle deleting a single document ---
+                    console.log("Deleting single entry:", artifactIdToDelete);
+                    const docRef = doc(db, `/artifacts/${appId}/users/${userId}/catalog`, artifactIdToDelete);
+                    await deleteDoc(docRef);
+                    showToast("Entry deleted successfully!");
+                }
+            } catch (e) {
+                console.error("Error deleting document(s):", e);
+                showToast("Error deleting entry.", true);
+            } finally {
+                cancelDelete(); 
+            }
+        }
+        
+        function deleteEntry(id) {
+            artifactIdToDelete = id;
+            // --- FIX: Update modal text based on action ---
+            if (id === 'all') {
+                deleteModalText.textContent = "Are you sure you want to permanently delete ALL entries in your catalog? This cannot be undone.";
+            } else {
+                deleteModalText.textContent = "Are you sure you want to permanently delete this entry?";
+            }
+            deleteModal.classList.add('show');
+        }
+
+        function cancelDelete() {
+            artifactIdToDelete = null;
+            deleteModal.classList.remove('show');
+        }
+        
+        // --- NEW: Export Modal Functions ---
+        function showExportModal(type) {
+            exportTypeToConfirm = type.toLowerCase();
+            if (exportTypeToConfirm === 'xlsx') {
+                exportModalTitle.textContent = 'Confirm Bulk Export';
+                exportModalText.textContent = 'Are you sure you want to export the entire catalog as an Excel (.xlsx) file?';
+            } else if (exportTypeToConfirm === 'json') {
+                exportModalTitle.textContent = 'Confirm Bulk Export';
+                exportModalText.textContent = 'Are you sure you want to export the entire catalog as a JSON (.json) file?';
+            } else {
+                return; // Don't show if type is invalid
+            }
+            exportModal.classList.add('show');
+        }
+
+        function cancelExport() {
+            exportTypeToConfirm = null;
+            exportModal.classList.remove('show');
+        }
+
+        async function performBulkExport() {
+            if (!exportTypeToConfirm) return;
+
+            const type = exportTypeToConfirm;
+            cancelExport(); // Hide modal immediately
+
+            showToast(`Exporting all as ${type.toUpperCase()}...`, false);
+
+            try {
+                const allData = await fetchAllCatalogData();
+                if (allData.length === 0) {
+                    showToast("Catalog is empty, nothing to export.", true);
+                    return;
+                }
+
+                if (type === 'xlsx') {
+                    downloadBulkXLSX(allData);
+                } else if (type === 'json') {
+                    downloadBulkJSON(allData);
+                }
+                showToast(`Catalog successfully exported as ${type.toUpperCase()}`, false);
+            } catch (e) {
+                console.error(`Error during bulk ${type} export:`, e);
+                showToast(`Error exporting ${type.toUpperCase()}. See console.`, true);
+            }
+        }
+        
+        async function fetchAllCatalogData() {
+            if (!userId) {
+                console.error("No user ID, cannot fetch catalog.");
+                return [];
+            }
+            const colPath = `/artifacts/${appId}/users/${userId}/catalog`;
+            const q = query(collection(db, colPath));
+            const snapshot = await getDocs(q);
+            
+            const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Sort by timestamp newest first (client-side)
+            docs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+            
+            return docs;
+        }
+
+
+        // --- Export Functions ---
+        function downloadPNG(imageData, id) {
+             const a = document.createElement('a');
+            a.href = imageData;
+            a.download = `artifact_${id}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function downloadSingleXLSX(artifact) {
+            const dataForSheet = [{
+                ID: artifact.id || 'N/A',
+                Timestamp: artifact.timestamp ? new Date(artifact.timestamp.toMillis()).toLocaleString() : 'N/A',
+                User: artifact.user,
+                IsArtifact: artifact.isArtifact,
+                Material: artifact.material,
+                Dimensions: artifact.dimensions,
+                Proportions: artifact.proportions,
+                AIDescription: artifact.aiDescription,
+                Notes: artifact.notes,
+                Reviewed: artifact.reviewed
+            }];
+            const ws = XLSX.utils.json_to_sheet(dataForSheet);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Artifact");
+            try {
+                XLSX.writeFile(wb, `artifact_${artifact.id || 'export'}.xlsx`);
+            } catch (e) {
+                showToast("Error exporting XLSX file.", true);
+            }
+        }
+
+        function downloadPDF(artifact, btn) {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '...';
+            btn.disabled = true;
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageW = doc.internal.pageSize.getWidth();
+            const margin = 15;
+            const contentW = pageW - (margin * 2);
+            let yPos = margin + 5;
+            
+            doc.setFontSize(20).setFont('helvetica', 'bold').text('Artifact Report', margin, yPos);
+            yPos += 12;
+            doc.setFontSize(12).setFont('helvetica', 'normal');
+
+            // Metadata block
+            const data = [
+                `Status: ${artifact.isArtifact ? 'CONFIRMED' : 'UNCLASSIFIED'}`,
+                `User: ${artifact.user}`,
+                `Timestamp: ${artifact.timestamp ? new Date(artifact.timestamp.toMillis()).toLocaleString() : 'N/A'}`,
+                `Reviewed: ${artifact.reviewed ? 'Yes' : 'No'}`,
+                `Material: ${artifact.material || 'N/A'}`,
+                `Dimensions: ${artifact.dimensions}`,
+            ];
+            data.forEach(line => { doc.text(line, margin, yPos); yPos += 7; });
+            yPos += 3;
+
+            // AI Description
+            doc.setFont('helvetica', 'bold').text('AI Description:', margin, yPos); yPos += 7;
+            doc.setFont('helvetica', 'normal');
+            const descLines = doc.splitTextToSize(artifact.aiDescription, contentW);
+            doc.text(descLines, margin, yPos);
+            yPos += (descLines.length * 5) + 5;
+
+            // Notes
+            doc.setFont('helvetica', 'bold').text('Field Notes:', margin, yPos); yPos += 7;
+            doc.setFont('helvetica', 'normal');
+            const notesLines = doc.splitTextToSize(artifact.notes || 'N/A', contentW);
+            doc.text(notesLines, margin, yPos);
+            yPos += (notesLines.length * 5) + 10;
+
+            // Image
+            const img = new Image();
+            img.onload = function() {
+                const ratio = this.naturalHeight / this.naturalWidth;
+                const finalImgW = contentW * 0.8;
+                const finalImgH = finalImgW * ratio;
+                const imgX = margin + (contentW - finalImgW) / 2; // Center the image
+
+                if (yPos + finalImgH > doc.internal.pageSize.getHeight() - margin) {
+                    doc.addPage();
+                    yPos = margin;
+                }
+
+                doc.addImage(artifact.imageData, 'PNG', imgX, yPos, finalImgW, finalImgH);
+                
+                doc.save(`report_${artifact.id || 'export'}.pdf`);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            };
+            img.onerror = function() {
+                showToast("Error: Could not load image for PDF.", true);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            };
+            img.src = artifact.imageData;
+        }
+
+        // --- UPDATED: Bulk Export Functions ---
+        function exportXLSX() { 
+            // This now opens the modal instead of showing a toast
+            showExportModal('xlsx'); 
+        }
+
+        function exportJSON() { 
+            // This now opens the modal instead of showing a toast
+            showExportModal('json'); 
+        }
+
+        function downloadBulkXLSX(data) {
+            // 1. Clean data for the sheet
+            const dataForSheet = data.map(artifact => ({
+                ID: artifact.id || 'N/A',
+                Timestamp: artifact.timestamp ? new Date(artifact.timestamp.toMillis()).toLocaleString() : 'N/A',
+                User: artifact.user,
+                IsArtifact: artifact.isArtifact,
+                Material: artifact.material,
+                Dimensions: artifact.dimensions,
+                Proportions: artifact.proportions,
+                AIDescription: artifact.aiDescription,
+                Notes: artifact.notes,
+                Reviewed: artifact.reviewed
+                // We skip imageData for bulk excel export as it's not practical
+            }));
+            
+            // 2. Create workbook
+            const ws = XLSX.utils.json_to_sheet(dataForSheet);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Artifact Catalog");
+            
+            // 3. Write file
+            try {
+                XLSX.writeFile(wb, `artifact_catalog_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } catch (e) {
+                console.error("Error writing XLSX file:", e);
+                showToast("Error exporting XLSX file.", true);
+            }
+        }
+
+        function downloadBulkJSON(data) {
+            // 1. Clean data to convert Timestamps to strings (more portable)
+            const cleanedData = data.map(artifact => ({
+                ...artifact,
+                // Convert timestamp to a standard ISO string, or null
+                timestamp: artifact.timestamp ? artifact.timestamp.toDate().toISOString() : null
+            }));
+
+            // 2. Create JSON string and Blob
+            const jsonString = JSON.stringify(cleanedData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            // 3. Create download link
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `artifact_catalog_export_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            
+            // 4. Clean up
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        // --- END: Bulk Export Functions ---
+
+
+        /**
+         * Shows the on-screen toast message.
+         * @param {string} message - The text to display.
+         * @param {boolean} [isError=false] - If true, show error styling (red).
+         */
+        function showToast(message, isError = false) {
+            submissionToast.querySelector('p').textContent = message;
+            
+            if (isError) {
+                submissionToast.classList.add('bg-red-700');
+                submissionToast.classList.remove('bg-brand-brown');
+            } else {
+                submissionToast.classList.remove('bg-red-700');
+                submissionToast.classList.add('bg-brand-brown');
+            }
+            
+            submissionToast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                submissionToast.classList.add('hidden');
+            }, 3000);
+        }
+
+        // --- Main App Initialization ---
+        window.onload = async () => {
+             // === MOVED DOM References here ===
+             pages = {
+                loading: document.getElementById('page-loading'),
+                login: document.getElementById('page-login'),
+                menu: document.getElementById('page-menu'),
+                camera: document.getElementById('page-camera'),
+                confirmation: document.getElementById('page-confirmation'),
+                catalog: document.getElementById('page-catalog'),
+                // collaborate: (removed)
+            };
+            
+            submissionToast = document.getElementById('submission-toast');
+            
+            aiStatusEl = document.getElementById('ai-status');
+            aiDescriptionInput = document.getElementById('ai-description-input');
+            dimensionsInput = document.getElementById('dimensions-input');
+            userNameInput = document.getElementById('user-name');
+            additionalInfoTextarea = document.getElementById('additional-info');
+            submitButton = document.getElementById('submit-button');
+            artifactImagePreview = document.getElementById('artifact-image-preview');
+            
+            cameraFeed = document.getElementById('camera-feed');
+            imageCanvas = document.getElementById('image-canvas');
+
+            catalogContent = document.getElementById('catalog-content');
+            catalogEmptyState = document.getElementById('catalog-empty-state');
+            catalogCardTemplate = document.getElementById('catalog-card-template');
+
+            deleteModal = document.getElementById('delete-modal');
+            deleteModalText = document.getElementById('delete-modal-text');
+            btnModalCancel = document.getElementById('btn-modal-cancel');
+            btnModalDelete = document.getElementById('btn-modal-delete');
+            
+            exportModal = document.getElementById('export-modal');
+            exportModalTitle = document.getElementById('export-modal-title');
+            exportModalText = document.getElementById('export-modal-text');
+            btnModalExportCancel = document.getElementById('btn-modal-export-cancel');
+            btnModalExportConfirm = document.getElementById('btn-modal-export-confirm');
+            // === END DOM References ===
+
+            
+            // --- FIREBASE INITIALIZATION ---
+            try {
+                const firebaseConfig = JSON.parse(firebaseConfigStr);
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.error("Firebase Config Missing: Using default anonymous sign-in.");
+                }
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('Debug');
+            } catch (e) {
+                console.error("Firebase initialization error:", e);
+                showToast("Fatal Error: Could not initialize Firebase.", true);
+                return; // Stop execution
+            }
+
+            // --- AUTHENTICATION & APP START ---
+            // === MOVED onAuthStateChanged here, INSIDE onload ===
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    // User is authenticated (either token or anonymous)
+                    userId = user.uid;
+                    // Now userNameInput is guaranteed to exist
+                    userNameInput.value = user.isAnonymous ? 'Guest' : user.uid.substring(0, 8);
+                    // If this is the first load, navigate from loading to login
+                    if (currentPage === 'page-loading') {
+                        // === MODIFIED: Added a 2-second delay ===
+                        setTimeout(() => goToPage('login'), 2000);
+                    }
+                } else {
+                    // No user.
+                    userId = null;
+                    userNameInput.value = "Guest";
+                    // --- FIX: Stop listener if user logs out ---
+                    if (catalogUnsubscribe) {
+                        catalogUnsubscribe();
+                        catalogUnsubscribe = null;
+                    }
+                    // Go to login page when logged out
+                    goToPage('login');
+                }
+            });
+            
+            // --- Simplified Initial Auth Trigger ---
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else if (!auth.currentUser) {
+                    // Only sign in if there isn't a user cached
+                    await signInAnonymously(auth);
+                }
+                // After this, onAuthStateChanged will fire with the user
+                // and call goToPage('login')
+            } catch (e) {
+                console.error("Initial sign-in failed:", e);
+                showToast("Authentication Failed. Check console.", true);
+                // If auth fails, we're stuck. We should still go to the login page
+                // so the user can see *something*.
+                // === MODIFIED: Added a 2-second delay ===
+                setTimeout(() => goToPage('login'), 2000);
+            }
+
+            // --- Event Listeners ---
+            
+            // Login Page (Demo navigation)
+            // === GOOGLE BUTTON REMOVED ===
+            // === APPLE BUTTON REMOVED ===
+            document.getElementById('btn-login-guest').onclick = () => goToPage('menu');
+
+            // Menu Page
+            document.getElementById('btn-menu-scan').onclick = () => goToPage('camera');
+            // === COLLABORATE BUTTON REMOVED ===
+            document.getElementById('btn-menu-catalog').onclick = () => goToPage('catalog');
+            document.getElementById('btn-menu-logout').onclick = () => {
+                // --- FIX: Detach listener on logout ---
+                if (catalogUnsubscribe) {
+                    catalogUnsubscribe();
+                    catalogUnsubscribe = null;
+                }
+                signOut(auth); // This will trigger onAuthStateChanged to go to 'login'
+            };
+
+            // Camera Page
+            document.getElementById('btn-camera-back').onclick = () => goToPage('menu');
+            document.getElementById('btn-take-picture').onclick = takePicture;
+
+            // Confirmation Page
+            document.getElementById('btn-confirm-cancel').onclick = () => goToPage('camera');
+            submitButton.onclick = submitArtifact;
+
+            // Catalog Page (Header)
+            document.getElementById('btn-catalog-back').onclick = () => goToPage('menu');
+            document.getElementById('btn-export-xlsx').onclick = exportXLSX;
+            document.getElementById('btn-export-json').onclick = exportJSON;
+            // --- FIX: Call deleteEntry with 'all' ---
+            document.getElementById('clear-catalog-btn').onclick = () => deleteEntry('all');
+
+            // === COLLABORATE PAGE LISTENERS REMOVED ===
+
+            // Modal Listeners
+            btnModalCancel.onclick = cancelDelete;
+            btnModalDelete.onclick = performDelete;
+            
+            // --- NEW: Export Modal Listeners ---
+            btnModalExportCancel.onclick = cancelExport;
+            btnModalExportConfirm.onclick = performBulkExport;
+
+            deleteModal.onclick = (e) => {
+                if (e.target === deleteModal) { cancelDelete(); }
+            };
+            
+            // --- NEW: Export Modal Click-off Listener ---
+            exportModal.onclick = (e) => {
+                if (e.target === exportModal) { cancelExport(); }
+            };
+        };
+    </script>
+</body>
+</html>
+
