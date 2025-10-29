@@ -6,6 +6,8 @@ BOB is a lightweight browser-based application designed to assist archaeologists
 
 How to use BOB
 -----------
+You can access the app https://cody-barlowe1337.github.io/Innovation_Project_FLL_25-26/ 
+
 Open the app and take a picture of your artifact.
 	![Step 3 - Take picture](media/Step_3_take_picture.jpeg)
 On the next screen, the AI will analyze your image and provide suggestions about your artifact’s attributes.
