@@ -184,6 +184,20 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
 
+    <!-- SIMPLE CLIENT-SIDE PASSWORD GATE (Free student-level protection) -->
+    <div id="pw-gate" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);z-index:9999;">
+        <div style="background:white;padding:24px;border-radius:12px;max-width:380px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,0.4);">
+            <h3 style="margin:0 0 8px;font-size:1.25rem;font-weight:600;">Project Access</h3>
+            <p style="margin:0 0 12px;color:#555;">Enter the access password to continue.</p>
+            <input id="pw-input" type="password" placeholder="Password" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:flex-end;gap:8px;">
+                <button id="pw-cancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;">Cancel</button>
+                <button id="pw-submit" style="padding:8px 12px;border-radius:8px;border:0;background:#14532d;color:white;">Enter</button>
+            </div>
+            <p style="margin-top:12px;color:#999;font-size:0.85rem;">Note: This is client-side only and intended as lightweight protection for demos.</p>
+        </div>
+    </div>
+
     <!-- Main App Container -->
     <div class="app-container w-full max-w-sm mx-auto rounded-2xl overflow-hidden" style="height: 80vh; min-height: 600px;">
         <div id="app-content" class="h-full relative">
@@ -327,7 +341,7 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-secondary mb-1">User</label>
-                            <input type="text" id="user-name" value="Guest" class="form-input w-full px-3 py-2 rounded-lg" readonly="">
+                            <input type="text" id="user-name" value="test123" class="form-input w-full px-3 py-2 rounded-lg" readonly="">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-secondary mb-1">Dimensions</label>
@@ -389,7 +403,7 @@
                             <div class="flex-1 min-w-0">
                                 <p class="artifact-description font-semibold text-primary truncate">Stone - Tool</p>
                                 <p class="artifact-notes text-sm text-secondary truncate">Notes: ...</p>
-                                <p class="artifact-user text-sm text-secondary">User: Guest</p>
+                                <p class="artifact-user text-sm text-secondary">User: test123</p>
                                 <p class="artifact-timestamp text-xs text-stone-400 mt-1">10/25/2025, 3:00 PM</p>
                             </div>
                             <!-- Delete Button Container -->
@@ -480,6 +494,52 @@
     </div>
 
     <script type="module">
+        // --- Client-side password gate ---
+        (function(){
+            const pwGate = document.getElementById('pw-gate');
+            const pwInput = document.getElementById('pw-input');
+            const pwSubmit = document.getElementById('pw-submit');
+            const pwCancel = document.getElementById('pw-cancel');
+
+            // Default password for demos (override by setting window.__site_password before loading the page)
+            const defaultPassword = typeof __site_password !== 'undefined' ? __site_password : 'test';
+
+            function unlock() {
+                sessionStorage.setItem('bob_authed', '1');
+                pwGate.style.display = 'none';
+            }
+
+            function lock() {
+                sessionStorage.removeItem('bob_authed');
+                pwGate.style.display = 'flex';
+            }
+
+            // If already authed in this session, hide gate immediately
+            if (sessionStorage.getItem('bob_authed') === '1') {
+                pwGate.style.display = 'none';
+            }
+
+            pwSubmit.addEventListener('click', () => {
+                const val = pwInput.value || '';
+                if (val === defaultPassword) {
+                    unlock();
+                } else {
+                    alert('Incorrect password');
+                    pwInput.value = '';
+                    pwInput.focus();
+                }
+            });
+
+            pwInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') pwSubmit.click();
+            });
+
+            pwCancel.addEventListener('click', () => {
+                // Cancel: navigate away to prevent accidental access during demos
+                window.location.href = 'about:blank';
+            });
+        })();
+
         // --- Global variables for App State ---
         let currentPage = 'page-loading';
         let cameraStream = null;
@@ -859,7 +919,7 @@ Material: [Your material identification here]
             const artifactData = {
                 // User & Metadata
                 id: `artifact_${new Date().getTime()}`, // Unique ID
-                user: userNameInput.value || "Guest",
+                user: userNameInput.value || "test123",
                 timestamp: new Date().toISOString(), // Use ISO string
                 
                 // Artifact Data
