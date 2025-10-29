@@ -18,10 +18,7 @@
     <!-- Load SheetJS (xlsx.js) library for Excel export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <!-- Load Firebase SDKs -->
-    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+    <!-- === FIREBASE SDKS REMOVED === -->
 
     <!-- Archeology Theme Styles -->
     <style>
@@ -209,25 +206,19 @@
                 <div class="spinner"></div>
             </div>
 
-            <!-- Page: Login -->
+            <!-- === PAGE: LOGIN RE-ADDED === -->
             <div id="page-login" class="hidden flex-col h-full p-8 justify-center">
                 <!-- Content -->
                 <div class="flex-shrink-0 text-center">
                     <img src="https://i.postimg.cc/nr7NVXnW/Gemini-Generated-Image-6ypkkm6ypkkm6ypk.png" alt="Artifact Analyzer Logo" class="w-32 h-32 mx-auto rounded-full mb-4 bg-brand-green object-cover transform -rotate-90">
                     <h1 class="text-3xl font-bold text-primary">Welcome to BOB</h1>
-                    <p class="text-secondary mt-2">Log in to your account</p>
+                    <p class="text-secondary mt-2">Sign in to continue</p>
                 </div>
                 <div class="flex flex-col space-y-4 mt-12">
-                    <!-- === GOOGLE SIGN IN BUTTON REMOVED === -->
-                    <!-- === APPLE SIGN IN BUTTON REMOVED === -->
                     <button id="btn-login-guest" class="w-full px-4 py-3 border border-transparent rounded-lg shadow-sm bg-brand-green text-white font-medium hover:bg-brand-green-dark">
                         Sign in as Guest
                     </button>
-                    
-                    <!-- === SIGN UP BUTTON REMOVED === -->
                 </div>
-                
-                <!-- === TEXT BUTTON REMOVED === -->
             </div>
 
             <!-- Page: Main Menu -->
@@ -235,6 +226,7 @@
                 <!-- Header -->
                 <div class="flex-shrink-0 flex items-center justify-between p-4 border-b border-default">
                     <h2 class="text-lg font-semibold text-primary">Main Menu</h2>
+                    <!-- === LOGOUT BUTTON RE-ADDED === -->
                     <button id="btn-menu-logout" class="text-secondary hover:text-brand-brown p-2" title="Log Out">
                         <!-- Logout Icon -->
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
@@ -244,6 +236,7 @@
                     </button>
                 </div>
                 <!-- Content -->
+                <!-- === HTML CONTENT RESTORED === -->
                 <div class="flex-grow overflow-y-auto p-6 space-y-6">
                     <button id="btn-menu-scan" class="menu-button">
                         <!-- Scan Artifact Icon (Emoji) -->
@@ -251,8 +244,6 @@
                         <span class="menu-button-title">Scan Artifact</span>
                         <span class="menu-button-subtitle">Open camera for AI analysis & log</span>
                     </button>
-
-                    <!-- === COLLABORATE BUTTON REMOVED === -->
                     
                     <button id="btn-menu-catalog" class="menu-button">
                         <!-- Local Log Icon -->
@@ -261,6 +252,7 @@
                         <span class="menu-button-subtitle">Review previously saved items</span>
                     </button>
                 </div>
+                <!-- === END RESTORED CONTENT === -->
             </div>
 
 
@@ -446,8 +438,6 @@
                 </div>
             </div>
             
-            <!-- === COLLABORATE PAGE REMOVED === -->
-
             <!-- Page: Submission Toast (overlay) -->
             <div id="submission-toast" class="hidden absolute bottom-24 left-1/2 -translate-x-1/2 bg-brand-brown text-white px-6 py-3 rounded-full shadow-lg z-20">
                 <p>Artifact saved successfully!</p>
@@ -489,51 +479,19 @@
         </div>
     </div>
 
-    <!--
-      The type="module" script block now contains all the JavaScript logic,
-      including Firebase initialization, setup, and core app functions.
-    -->
     <script type="module">
-        // --- Firebase Imports ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken, 
-            onAuthStateChanged,
-            signOut 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            collection, 
-            addDoc, 
-            onSnapshot, 
-            query, 
-            serverTimestamp,
-            setLogLevel,
-            deleteDoc,
-            doc,
-            setDoc, // Import setDoc for the review toggle
-            writeBatch, // Import writeBatch for clearing the catalog
-            getDocs // Import getDocs for clearing the catalog
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- Global Firebase variables (initialized later) ---
-        let db, auth, userId, app;
-
-        // --- App ID and Firebase Config (from environment) ---
-        // NOTE: These variables are automatically injected by the Canvas environment.
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
         // --- Global variables for App State ---
         let currentPage = 'page-loading';
         let cameraStream = null;
         let capturedImageData = null;
         let artifactIdToDelete = null; // Can be a single ID or 'all'
         let aiAnalysisData = null; // Stores the results from AI before saving
-        let catalogUnsubscribe = null; // Function to stop the Firestore listener
+        
+        // --- LOCAL STORAGE KEY ---
+        const LOCAL_STORAGE_KEY = 'bob_artifact_catalog';
+
+        // --- NEW: Renamed - No listener variable needed ---
+        // let catalogUnsubscribe = null; 
 
         // --- DOM Element References ---
         let pages = {}; // Will be populated in window.onload
@@ -831,18 +789,19 @@ Material: [Your material identification here]
                 stopCamera();
             }
 
-            // --- FIX: Detach Firestore listener if navigating away from catalog ---
-            if (currentPage === 'catalog' && pageId !== 'catalog') {
-                if (catalogUnsubscribe) {
-                    console.log("Detaching catalog listener.");
-                    catalogUnsubscribe(); // Stop listener
-                    catalogUnsubscribe = null;
-                }
+            // --- REMOVED: No listener to detach ---
+            
+            // --- NEW: Detach listener if "logging out" (going to login) ---
+            // (This is a placeholder, no listener exists, but good practice if we add one)
+            if (pageId === 'login') {
+                 // if (catalogUnsubscribe) { ... }
             }
 
             for (const id in pages) {
-                pages[id].classList.add('hidden');
-                pages[id].classList.remove('flex');
+                if (pages[id]) { // Check if element exists
+                    pages[id].classList.add('hidden');
+                    pages[id].classList.remove('flex');
+                }
             }
 
             const targetPage = pages[pageId];
@@ -863,11 +822,30 @@ Material: [Your material identification here]
             }
             // Start catalog listener if navigating to it
             if (currentPage === 'catalog') {
-                loadArtifactCatalog();
+                loadArtifactCatalog(); // Changed from loadArtifactLog
             }
         }
 
-        // --- Data Persistence (Firestore) ---
+        // --- Data Persistence (Local Storage) ---
+
+        /**
+         * Fetches all artifacts from Local Storage
+         * @returns {Array<object>} An array of artifact objects
+         */
+        function getArtifactsFromStorage() {
+            const artifacts = localStorage.getItem(LOCAL_STORAGE_KEY);
+            return artifacts ? JSON.parse(artifacts) : [];
+        }
+
+        /**
+         * Saves a list of artifacts to Local Storage
+         * @param {Array<object>} artifacts - The array of artifact objects to save
+         */
+        function saveArtifactsToStorage(artifacts) {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(artifacts));
+        }
+
+
         async function submitArtifact() {
             if (!capturedImageData || submitButton.disabled || !aiAnalysisData) {
                 console.error("Missing data to save.");
@@ -876,12 +854,13 @@ Material: [Your material identification here]
 
             submitButton.disabled = true;
             submitButton.textContent = "Saving...";
-
+            
+            // --- NEW: Generate Local-Storage-friendly data ---
             const artifactData = {
                 // User & Metadata
-                userId: userId,
-                user: userNameInput.value || "Anonymous",
-                timestamp: serverTimestamp(),
+                id: `artifact_${new Date().getTime()}`, // Unique ID
+                user: userNameInput.value || "Guest",
+                timestamp: new Date().toISOString(), // Use ISO string
                 
                 // Artifact Data
                 imageData: capturedImageData,
@@ -897,8 +876,10 @@ Material: [Your material identification here]
             };
             
             try {
-                const colPath = `/artifacts/${appId}/users/${userId}/catalog`;
-                await addDoc(collection(db, colPath), artifactData);
+                // --- NEW: Save to Local Storage ---
+                const allArtifacts = getArtifactsFromStorage();
+                allArtifacts.push(artifactData);
+                saveArtifactsToStorage(allArtifacts);
                 
                 showToast("Artifact saved successfully!");
                 
@@ -913,41 +894,23 @@ Material: [Your material identification here]
                 }, 1500); 
 
             } catch (e) {
-                console.error('Failed to save artifact to Firestore:', e);
+                console.error('Failed to save artifact to Local Storage:', e);
                 showToast("Error saving data. See console.", true);
                 submitButton.textContent = "Save";
                 submitButton.disabled = false;
             }
         }
 
-        // --- Catalog Page Functions (Firestore Real-time) ---
+        // --- Catalog Page Functions (Local Storage) ---
         function loadArtifactCatalog() {
-            if (!userId) {
-                catalogContent.innerHTML = '<p class="p-4 text-red-500">Authentication error: Cannot load catalog.</p>';
-                return;
-            }
             
-            // --- FIX: Only attach listener if one isn't already active ---
-            if (catalogUnsubscribe) {
-                console.log("Catalog listener already active.");
-                return;
-            }
+            // --- REMOVED: No listener ---
 
-            const colPath = `/artifacts/${appId}/users/${userId}/catalog`;
-            const q = query(collection(db, colPath));
-
-            console.log("Attaching catalog listener.");
-            catalogUnsubscribe = onSnapshot(q, (snapshot) => {
-                if (!userId) { 
-                    console.warn("Catalog listener fired but user is logged out.");
-                    if(catalogUnsubscribe) catalogUnsubscribe();
-                    catalogUnsubscribe = null;
-                    return; 
-                }
-
-                const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            try {
+                const docs = getArtifactsFromStorage();
+                
                 // Sort by timestamp newest first (client-side)
-                docs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+                docs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
                 catalogContent.innerHTML = '';
                 catalogContent.appendChild(catalogEmptyState); 
@@ -972,7 +935,7 @@ Material: [Your material identification here]
                         card.querySelector('.artifact-description').innerHTML = `<span class="${statusColor} font-bold">${statusText}</span>: ${artifact.aiDescription.substring(0, 50)}...`;
                         card.querySelector('.artifact-notes').textContent = `Notes: ${artifact.notes || '...'}`;
                         card.querySelector('.artifact-user').textContent = `User: ${artifact.user}`;
-                        const date = artifact.timestamp ? new Date(artifact.timestamp.toMillis()).toLocaleString() : 'Saving...';
+                        const date = artifact.timestamp ? new Date(artifact.timestamp).toLocaleString() : 'Saving...';
                         card.querySelector('.artifact-timestamp').textContent = date;
                         
                         // Set unique ID for PDF/XLSX downloads
@@ -984,7 +947,7 @@ Material: [Your material identification here]
                         card.querySelector('.btn-xlsx').onclick = (e) => { downloadSingleXLSX(artifact); };
                         card.querySelector('.btn-delete-entry').onclick = () => { deleteEntry(artifact.id); };
                         
-                        // Review Checkbox logic (saving back to Firestore)
+                        // Review Checkbox logic (saving back to Local Storage)
                         const checkbox = card.querySelector('.review-checkbox');
                         checkbox.checked = artifact.reviewed;
                         checkbox.onchange = () => toggleReview(artifact.id, checkbox.checked);
@@ -992,17 +955,21 @@ Material: [Your material identification here]
                         catalogContent.appendChild(card);
                     });
                 }
-            }, (error) => {
-                console.error("Firestore snapshot error:", error);
+            } catch (error) {
+                console.error("Local Storage snapshot error:", error);
                 showToast("Error loading catalog. See console.", true);
-                catalogContent.innerHTML = `<p class="p-4 text-red-500">Error loading real-time catalog.</p>`;
-            });
+                catalogContent.innerHTML = `<p class="p-4 text-red-500">Error loading catalog.</p>`;
+            }
         }
 
         async function toggleReview(id, checked) {
              try {
-                const docRef = doc(db, `/artifacts/${appId}/users/${userId}/catalog`, id);
-                await setDoc(docRef, { reviewed: checked }, { merge: true });
+                const allArtifacts = getArtifactsFromStorage();
+                const artifactIndex = allArtifacts.findIndex(a => a.id === id);
+                if (artifactIndex > -1) {
+                    allArtifacts[artifactIndex].reviewed = checked;
+                    saveArtifactsToStorage(allArtifacts);
+                }
             } catch (e) {
                 console.error("Error updating review status:", e);
                 showToast("Error updating review status.", true);
@@ -1014,26 +981,20 @@ Material: [Your material identification here]
 
             try {
                 if (artifactIdToDelete === 'all') {
-                    // --- FIX: Handle deleting all documents ---
-                    console.log("Deleting all catalog entries for user:", userId);
-                    const colPath = `/artifacts/${appId}/users/${userId}/catalog`;
-                    const q = query(collection(db, colPath));
-                    const snapshot = await getDocs(q);
-                    
-                    const batch = writeBatch(db);
-                    snapshot.docs.forEach(doc => {
-                        batch.delete(doc.ref);
-                    });
-                    await batch.commit();
+                    // --- NEW: Handle deleting all documents from Local Storage ---
+                    console.log("Deleting all catalog entries from Local Storage");
+                    saveArtifactsToStorage([]); // Save an empty array
                     showToast("Catalog cleared successfully!");
 
                 } else {
-                    // --- Handle deleting a single document ---
+                    // --- NEW: Handle deleting a single document from Local Storage ---
                     console.log("Deleting single entry:", artifactIdToDelete);
-                    const docRef = doc(db, `/artifacts/${appId}/users/${userId}/catalog`, artifactIdToDelete);
-                    await deleteDoc(docRef);
+                    let allArtifacts = getArtifactsFromStorage();
+                    allArtifacts = allArtifacts.filter(a => a.id !== artifactIdToDelete);
+                    saveArtifactsToStorage(allArtifacts);
                     showToast("Entry deleted successfully!");
                 }
+                loadArtifactCatalog(); // Refresh the view
             } catch (e) {
                 console.error("Error deleting document(s):", e);
                 showToast("Error deleting entry.", true);
@@ -1087,7 +1048,8 @@ Material: [Your material identification here]
             showToast(`Exporting all as ${type.toUpperCase()}...`, false);
 
             try {
-                const allData = await fetchAllCatalogData();
+                // --- NEW: Use local storage function ---
+                const allData = fetchAllCatalogData();
                 if (allData.length === 0) {
                     showToast("Catalog is empty, nothing to export.", true);
                     return;
@@ -1105,19 +1067,12 @@ Material: [Your material identification here]
             }
         }
         
-        async function fetchAllCatalogData() {
-            if (!userId) {
-                console.error("No user ID, cannot fetch catalog.");
-                return [];
-            }
-            const colPath = `/artifacts/${appId}/users/${userId}/catalog`;
-            const q = query(collection(db, colPath));
-            const snapshot = await getDocs(q);
-            
-            const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        function fetchAllCatalogData() {
+            // --- NEW: Get from local storage ---
+            const docs = getArtifactsFromStorage();
             
             // Sort by timestamp newest first (client-side)
-            docs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+            docs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
             
             return docs;
         }
@@ -1136,7 +1091,7 @@ Material: [Your material identification here]
         function downloadSingleXLSX(artifact) {
             const dataForSheet = [{
                 ID: artifact.id || 'N/A',
-                Timestamp: artifact.timestamp ? new Date(artifact.timestamp.toMillis()).toLocaleString() : 'N/A',
+                Timestamp: artifact.timestamp ? new Date(artifact.timestamp).toLocaleString() : 'N/A',
                 User: artifact.user,
                 IsArtifact: artifact.isArtifact,
                 Material: artifact.material,
@@ -1176,7 +1131,7 @@ Material: [Your material identification here]
             const data = [
                 `Status: ${artifact.isArtifact ? 'CONFIRMED' : 'UNCLASSIFIED'}`,
                 `User: ${artifact.user}`,
-                `Timestamp: ${artifact.timestamp ? new Date(artifact.timestamp.toMillis()).toLocaleString() : 'N/A'}`,
+                `Timestamp: ${artifact.timestamp ? new Date(artifact.timestamp).toLocaleString() : 'N/A'}`,
                 `Reviewed: ${artifact.reviewed ? 'Yes' : 'No'}`,
                 `Material: ${artifact.material || 'N/A'}`,
                 `Dimensions: ${artifact.dimensions}`,
@@ -1240,7 +1195,7 @@ Material: [Your material identification here]
             // 1. Clean data for the sheet
             const dataForSheet = data.map(artifact => ({
                 ID: artifact.id || 'N/A',
-                Timestamp: artifact.timestamp ? new Date(artifact.timestamp.toMillis()).toLocaleString() : 'N/A',
+                Timestamp: artifact.timestamp ? new Date(artifact.timestamp).toLocaleString() : 'N/A',
                 User: artifact.user,
                 IsArtifact: artifact.isArtifact,
                 Material: artifact.material,
@@ -1271,7 +1226,7 @@ Material: [Your material identification here]
             const cleanedData = data.map(artifact => ({
                 ...artifact,
                 // Convert timestamp to a standard ISO string, or null
-                timestamp: artifact.timestamp ? artifact.timestamp.toDate().toISOString() : null
+                timestamp: artifact.timestamp ? new Date(artifact.timestamp).toISOString() : null
             }));
 
             // 2. Create JSON string and Blob
@@ -1321,12 +1276,11 @@ Material: [Your material identification here]
              // === MOVED DOM References here ===
              pages = {
                 loading: document.getElementById('page-loading'),
-                login: document.getElementById('page-login'),
+                login: document.getElementById('page-login'), // Re-added
                 menu: document.getElementById('page-menu'),
                 camera: document.getElementById('page-camera'),
                 confirmation: document.getElementById('page-confirmation'),
                 catalog: document.getElementById('page-catalog'),
-                // collaborate: (removed)
             };
             
             submissionToast = document.getElementById('submission-toast');
@@ -1359,86 +1313,25 @@ Material: [Your material identification here]
             // === END DOM References ===
 
             
-            // --- FIREBASE INITIALIZATION ---
-            try {
-                const firebaseConfig = JSON.parse(firebaseConfigStr);
-                if (Object.keys(firebaseConfig).length === 0) {
-                    console.error("Firebase Config Missing: Using default anonymous sign-in.");
-                }
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                setLogLevel('Debug');
-            } catch (e) {
-                console.error("Firebase initialization error:", e);
-                showToast("Fatal Error: Could not initialize Firebase.", true);
-                return; // Stop execution
-            }
+            // --- NO FIREBASE ---
 
-            // --- AUTHENTICATION & APP START ---
-            // === MOVED onAuthStateChanged here, INSIDE onload ===
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    // User is authenticated (either token or anonymous)
-                    userId = user.uid;
-                    // Now userNameInput is guaranteed to exist
-                    userNameInput.value = user.isAnonymous ? 'Guest' : user.uid.substring(0, 8);
-                    // If this is the first load, navigate from loading to login
-                    if (currentPage === 'page-loading') {
-                        // === MODIFIED: Added a 2-second delay ===
-                        setTimeout(() => goToPage('login'), 2000);
-                    }
-                } else {
-                    // No user.
-                    userId = null;
-                    userNameInput.value = "Guest";
-                    // --- FIX: Stop listener if user logs out ---
-                    if (catalogUnsubscribe) {
-                        catalogUnsubscribe();
-                        catalogUnsubscribe = null;
-                    }
-                    // Go to login page when logged out
-                    goToPage('login');
-                }
-            });
-            
-            // --- Simplified Initial Auth Trigger ---
-            try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else if (!auth.currentUser) {
-                    // Only sign in if there isn't a user cached
-                    await signInAnonymously(auth);
-                }
-                // After this, onAuthStateChanged will fire with the user
-                // and call goToPage('login')
-            } catch (e) {
-                console.error("Initial sign-in failed:", e);
-                showToast("Authentication Failed. Check console.", true);
-                // If auth fails, we're stuck. We should still go to the login page
-                // so the user can see *something*.
-                // === MODIFIED: Added a 2-second delay ===
-                setTimeout(() => goToPage('login'), 2000);
-            }
+            // --- App Start ---
+            // Navigate to login page after delay
+            setTimeout(() => {
+                goToPage('login'); // Changed from 'menu' to 'login'
+            }, 2000); // 2 second delay
+
 
             // --- Event Listeners ---
             
-            // Login Page (Demo navigation)
-            // === GOOGLE BUTTON REMOVED ===
-            // === APPLE BUTTON REMOVED ===
+            // Login Page
             document.getElementById('btn-login-guest').onclick = () => goToPage('menu');
 
             // Menu Page
             document.getElementById('btn-menu-scan').onclick = () => goToPage('camera');
-            // === COLLABORATE BUTTON REMOVED ===
             document.getElementById('btn-menu-catalog').onclick = () => goToPage('catalog');
             document.getElementById('btn-menu-logout').onclick = () => {
-                // --- FIX: Detach listener on logout ---
-                if (catalogUnsubscribe) {
-                    catalogUnsubscribe();
-                    catalogUnsubscribe = null;
-                }
-                signOut(auth); // This will trigger onAuthStateChanged to go to 'login'
+                goToPage('login'); // Go back to login page
             };
 
             // Camera Page
@@ -1453,10 +1346,7 @@ Material: [Your material identification here]
             document.getElementById('btn-catalog-back').onclick = () => goToPage('menu');
             document.getElementById('btn-export-xlsx').onclick = exportXLSX;
             document.getElementById('btn-export-json').onclick = exportJSON;
-            // --- FIX: Call deleteEntry with 'all' ---
             document.getElementById('clear-catalog-btn').onclick = () => deleteEntry('all');
-
-            // === COLLABORATE PAGE LISTENERS REMOVED ===
 
             // Modal Listeners
             btnModalCancel.onclick = cancelDelete;
