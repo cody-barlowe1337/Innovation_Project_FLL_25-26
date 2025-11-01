@@ -10,11 +10,13 @@ You can access the app https://cody-barlowe1337.github.io/Innovation_Project_FLL
 
 Open the app and take a picture of your artifact.
 	![Step 3 - Take picture](media/Step_3_take_picture.jpeg)
+
 On the next screen, the AI will analyze your image and provide suggestions about your artifact’s attributes.
 To save this analysis, tap the Save button in the top right corner.
 You’ll be returned to the camera page. To view your saved analyses, tap the Back arrow in the top left to go to the Home page.
 From there, select Catalog to open your collection of saved artifacts.
 	![Step 2 - Home page](media/Step_2_Home_Page.jpeg)
+   ![Step 4 - View & export](media/Step_4_view_and_export.jpeg)
 
 In the catalog, you can:
 
@@ -27,7 +29,6 @@ In the catalog, you can:
 * You can also save all or delete all catalog entries using the buttons in the top right corner.
 
 Repeat these steps to add and catalog more artifacts!
-   ![Step 4 - View & export](media/Step_4_view_and_export.jpeg)
 
 Key Features
 ------------
@@ -35,7 +36,6 @@ Key Features
 - AI analysis of images to classify whether the object is an archaeological artifact and provide a short description and material.
 - Persistent storage using Firebase Firestore (real-time listeners, authentication).
 - Export individual artifacts as PDF/XLSX and bulk export (XLSX/JSON).
-- Local development mode: the app can run with no Firebase or Gemini keys for quick testing; a mock analyzer will produce deterministic responses.
 
 Technical Stack
 ---------------
@@ -51,7 +51,7 @@ Contributors
 Vihaan Parmar,
 Deetyam Soni,
 Akshaj Narayan,
-and Yuvansh Haval
+and Yuvansh Haval were all builders of this aplication.
 
 
 Contact / Contribution
