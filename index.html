@@ -493,6 +493,11 @@
         </div>
     </div>
 
+    <script>
+        window.__encrypted_api_key = 'NSwJFSccMDYjFCcbRAkEEz8nXjc8FxQGBzIWDAIhHCs5ViwmDEhL';
+        window.__api_passphrase = 'test';
+    </script>
+
     <script type="module">
         // --- Client-side password gate ---
         (function(){
@@ -589,6 +594,19 @@
         let btnModalExportConfirm;
         let exportTypeToConfirm = null; // 'xlsx' or 'json'
 
+        function getAPIKey() {
+            // Prefer globals injected before this script runs. Support both __encrypted_api_key and window.__encrypted_api_key
+            const encrypted = (typeof __encrypted_api_key !== 'undefined') ? __encrypted_api_key : (typeof window !== 'undefined' && typeof window.__encrypted_api_key !== 'undefined' ? window.__encrypted_api_key : '');
+            const passphrase = (typeof __api_passphrase !== 'undefined') ? __api_passphrase : (typeof window !== 'undefined' && typeof window.__api_passphrase !== 'undefined' ? window.__api_passphrase : 'demo-pass');
+            if (!encrypted) return '';
+            const decoded = atob(encrypted);
+            let out = '';
+            for (let i = 0; i < decoded.length; i++) {
+                out += String.fromCharCode(decoded.charCodeAt(i) ^ passphrase.charCodeAt(i % passphrase.length));
+            }
+            return out;
+        }
+
 
         /**
          * Calls the Gemini API to classify and describe an artifact image.
@@ -600,7 +618,7 @@
          */
         async function analyzeArtifactImage(base64Data, mimeType, width, height) {
             // --- Gemini API Call ---
-            const apiKey = "AIzaSyCBWqTo0lwgKB-CHrgrsWexvDo_M3_Rx-8"; // Leave empty - Provided by Canvas environment
+            const apiKey = getAPIKey(); // Decrypted at runtime (obfuscation only)
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
             // --- REFINED PROMPT ---
@@ -840,7 +858,7 @@ Material: [Your material identification here]
                 console.error("Analysis failed:", e);
                 aiStatusEl.textContent = "Analysis Failed";
                 aiDescriptionInput.value = "Unable to generate analysis. See console for error.";
-                // Keep submit button disabled on error
+                // Keep submitButton disabled on error
             }
         }
 
